@@ -274,11 +274,14 @@
       const baseLng = Number(lng) || -46.657634;
       const cosLat = Math.cos((baseLat * Math.PI) / 180) || 1;
       const spawns = [];
+      const count = 8;
 
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < count; i++) {
         const creature = CREATURES[Math.floor(Math.random() * CREATURES.length)];
-        const distM = i < 2 ? 18 + Math.random() * 28 : 50 + Math.random() * 110;
-        const angle = Math.random() * Math.PI * 2;
+        // First 2 within interaction range (25-48m), remaining spread cleanly 55-180m
+        const distM = i < 2 ? 25 + i * 12 + Math.random() * 10 : 55 + ((i - 2) / (count - 2)) * 115 + Math.random() * 12;
+        // Distribute angles evenly around the compass with slight jitter so spawns never stack
+        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
         const dLat = (distM * Math.cos(angle)) / 111320;
         const dLng = (distM * Math.sin(angle)) / (111320 * cosLat);
 

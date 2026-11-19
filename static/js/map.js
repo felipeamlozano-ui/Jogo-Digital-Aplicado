@@ -19,11 +19,13 @@
       this.map = null;
       this.playerMarker = null;
       this.radiusCircle = null;
+      this.accuracyCircle = null;
       this.spawnMarkers = [];
       this.playerLat = null;
       this.playerLng = null;
       this.spawns = [];
       this.initialized = false;
+      this._calibrationCallback = null;
     }
 
     init(lat, lng) {
@@ -74,11 +76,52 @@
         weight: 2,
         dashArray: '6, 6'
       }).addTo(this.map);
+
+      this.accuracyCircle = L.circle([lat, lng], {
+        radius: 0,
+        color: '#38bdf8',
+        fillColor: '#38bdf8',
+        fillOpacity: 0.07,
+        weight: 1.5,
+        dashArray: '4, 6'
+      }).addTo(this.map);
+
+      this.map.on('click', (e) => {
+        if (this._calibrationCallback) {
+          const cb = this._calibrationCallback;
+          this.setCalibrationMode(false);
+          cb(e.latlng.lat, e.latlng.lng);
+        }
+      });
     }
 
-    updatePlayerPosition(lat, lng, panToPlayer = true) {
+    setCalibrationMode(active, onPick) {
+      const container = document.getElementById(this.containerId);
+      if (active) {
+        this._calibrationCallback = onPick || null;
+        if (container) container.classList.add('calibrating-map');
+      } else {
+        this._calibrationCallback = null;
+        if (container) container.classList.remove('calibrating-map');
+      }
+    }
+
+    updateAccuracy(accuracy) {
+      if (!this.accuracyCircle || this.playerLat === null) return;
+      if (accuracy && accuracy > 20) {
+        this.accuracyCircle.setLatLng([this.playerLat, this.playerLng]);
+        this.accuracyCircle.setRadius(accuracy);
+        this.accuracyCircle.setStyle({ opacity: 0.6, fillOpacity: 0.07 });
+      } else {
+        this.accuracyCircle.setRadius(0);
+        this.accuracyCircle.setStyle({ opacity: 0, fillOpacity: 0 });
+      }
+    }
+
+    updatePlayerPosition(lat, lng, panToPlayer = true, accuracy = null) {
       if (!this.initialized) {
         this.init(lat, lng);
+        if (accuracy !== null) this.updateAccuracy(accuracy);
         return;
       }
       this.playerLat = lat;
@@ -88,6 +131,9 @@
       }
       if (this.radiusCircle) {
         this.radiusCircle.setLatLng([lat, lng]);
+      }
+      if (accuracy !== null) {
+        this.updateAccuracy(accuracy);
       }
       if (panToPlayer && this.map) {
         this.map.panTo([lat, lng], { animate: true, duration: 0.35 });

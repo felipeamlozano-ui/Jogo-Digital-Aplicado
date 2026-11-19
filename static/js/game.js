@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  const { SoundFX, LocationManager, ExerciseTracker, CameraAR } = global.VitalisSensors;
+  const { SoundFX, LocationManager, StepPedometer, ExerciseTracker, CameraAR } = global.VitalisSensors;
   const Icons = global.VitalisIcons;
 
   const TYPE_COLORS = {
@@ -73,14 +73,23 @@
       this.arActive = false;
       this.sessionDistanceSinceSpawnFetch = 0;
       this.pendingSessionDistance = 0;
+      this.liveSteps = 0;
+      this.liveStepDistanceM = 0;
+      this.lastGpsMoveTime = 0;
+      this.calibrating = false;
+      this.lowAccuracyWarned = false;
       this.useLocalEngine = global.location.hostname.endsWith('github.io');
 
       this.location = new LocationManager({
         initialMode: 'gps',
-        onMove: (lat, lng, deltaM, isFirstFix) => this.handlePlayerMove(lat, lng, deltaM, isFirstFix),
+        onMove: (lat, lng, deltaM, isFirstFix, accuracy) => this.handlePlayerMove(lat, lng, deltaM, isFirstFix, accuracy),
         onModeChange: (mode) => this.updateModeUI(mode),
-        onGPSState: (state, msg) => this.handleGPSState(state, msg),
+        onGPSState: (state, msg, accuracy) => this.handleGPSState(state, msg, accuracy),
         onError: (msg) => showToast(msg, 3500)
+      });
+
+      this.pedometer = new StepPedometer({
+        onStep: ({ steps, stepDistanceM }) => this.handleStep(steps, stepDistanceM)
       });
 
       this.vitalisMap = new global.VitalisMap({
@@ -99,6 +108,10 @@
       this.updateModeUI(this.location.mode);
 
       await this.fetchPlayer();
+      // Start continuous pedometer if supported without gesture; also retries on first tap
+      if (this.pedometer && typeof global.DeviceMotionEvent?.requestPermission !== 'function') {
+        this.pedometer.start();
+      }
       // Immediately request real GPS permission on load (never silent fake location)
       this.location.requestGPS();
     }
@@ -109,15 +122,40 @@
       }
     }
 
-    handleGPSState(state, message) {
+    handleGPSState(state, message, accuracy) {
       const overlay = document.getElementById('location-overlay');
       const title = document.getElementById('location-overlay-title');
       const msgEl = document.getElementById('location-overlay-msg');
       const retryBtn = document.getElementById('btn-retry-gps');
+      const statusPill = document.getElementById('gps-status-pill');
+      const statusText = document.getElementById('gps-status-text');
+
+      if (statusPill && statusText) {
+        if (state === 'manual') {
+          statusPill.classList.remove('hidden', 'low-accuracy');
+          statusText.textContent = 'Posição ajustada';
+        } else if (state === 'ready' && this.location.mode === 'simulator') {
+          statusPill.classList.remove('hidden', 'low-accuracy');
+          statusText.textContent = 'Modo Simulador';
+        } else if (state === 'ready' && accuracy !== null && accuracy !== undefined) {
+          statusPill.classList.remove('hidden');
+          if (accuracy > 250) {
+            statusPill.classList.add('low-accuracy');
+            statusText.textContent = `Local aproximado (Wi-Fi/IP: ±${accuracy} m)`;
+            if (!this.lowAccuracyWarned) {
+              this.lowAccuracyWarned = true;
+              showToast(`Precisão baixa (±${accuracy} m via Wi-Fi/IP). Use "Ajustar posição" no mapa para marcar seu local exato.`, 5000);
+            }
+          } else {
+            statusPill.classList.remove('low-accuracy');
+            statusText.textContent = `GPS: ±${accuracy} m`;
+          }
+        }
+      }
 
       if (!overlay) return;
 
-      if (state === 'ready') {
+      if (state === 'ready' || state === 'manual') {
         overlay.classList.add('hidden');
         return;
       }
@@ -132,6 +170,16 @@
         msgEl.textContent = message || 'Não foi possível acessar sua localização.';
         retryBtn.textContent = 'Tentar novamente';
       }
+    }
+
+    handleStep(steps, stepDistanceM) {
+      this.liveSteps = steps;
+      // Add step distance when GPS hasn't delivered a movement delta in the last 3 seconds
+      if (Date.now() - this.lastGpsMoveTime > 3000) {
+        this.liveStepDistanceM += stepDistanceM;
+        this.pendingSessionDistance += stepDistanceM;
+      }
+      this.renderHUD();
     }
 
     _localDispatchGet(url) {
@@ -222,20 +270,26 @@
       }
     }
 
-    handlePlayerMove(lat, lng, deltaM, isFirstFix) {
+    handlePlayerMove(lat, lng, deltaM, isFirstFix, accuracy = null) {
       if (!this.vitalisMap.initialized) {
         this.vitalisMap.init(lat, lng);
+        if (accuracy !== null) this.vitalisMap.updateAccuracy(accuracy);
       } else {
-        this.vitalisMap.updatePlayerPosition(lat, lng, true);
+        this.vitalisMap.updatePlayerPosition(lat, lng, true, accuracy);
       }
 
       if (isFirstFix) {
+        this.vitalisMap.centerOnPlayer();
         this.fetchSpawns();
         return;
       }
 
-      this.pendingSessionDistance += deltaM;
-      this.sessionDistanceSinceSpawnFetch += deltaM;
+      if (deltaM > 0) {
+        this.lastGpsMoveTime = Date.now();
+        this.pendingSessionDistance += deltaM;
+        this.sessionDistanceSinceSpawnFetch += deltaM;
+        this.renderHUD();
+      }
 
       if (this.sessionDistanceSinceSpawnFetch >= 60) {
         this.sessionDistanceSinceSpawnFetch = 0;
@@ -273,7 +327,12 @@
       document.getElementById('hud-xp-text').textContent = `${xp} / ${nextXp} XP`;
       document.getElementById('hud-xp-fill').style.width = `${pct}%`;
       document.getElementById('hud-calories').textContent = `${Math.round(this.player.total_calories || 0)} kcal`;
-      document.getElementById('hud-distance').textContent = formatDistance(this.player.total_distance_m || 0);
+      const liveDist = (this.player.total_distance_m || 0) + this.pendingSessionDistance;
+      document.getElementById('hud-distance').textContent = formatDistance(liveDist);
+      const stepsEl = document.getElementById('hud-steps');
+      if (stepsEl) {
+        stepsEl.textContent = `${this.liveSteps} ${this.liveSteps === 1 ? 'passo' : 'passos'}`;
+      }
     }
 
     async switchTab(tab) {
@@ -564,12 +623,38 @@
       });
 
       document.getElementById('btn-retry-gps').addEventListener('click', () => {
+        if (this.pedometer && !this.pedometer.running) this.pedometer.start();
+        this.lowAccuracyWarned = false;
         this.location.requestGPS();
       });
 
       document.getElementById('btn-fallback-sim').addEventListener('click', () => {
+        if (this.pedometer && !this.pedometer.running) this.pedometer.start();
         this.location.setMode('simulator');
       });
+
+      const calBtn = document.getElementById('btn-calibrate-pos');
+      if (calBtn) {
+        calBtn.addEventListener('click', () => {
+          if (this.pedometer && !this.pedometer.running) this.pedometer.start();
+          if (this.calibrating) {
+            this.calibrating = false;
+            calBtn.classList.remove('active');
+            this.vitalisMap.setCalibrationMode(false);
+            showToast('Ajuste de posição cancelado.');
+          } else {
+            this.calibrating = true;
+            calBtn.classList.add('active');
+            showToast('Toque no mapa para marcar sua posição exata.', 4000);
+            this.vitalisMap.setCalibrationMode(true, (lat, lng) => {
+              this.calibrating = false;
+              calBtn.classList.remove('active');
+              this.location.setManualPosition(lat, lng);
+              showToast('Posição atualizada e spawns recalculados.');
+            });
+          }
+        });
+      }
 
       document.getElementById('btn-center-map').addEventListener('click', () => {
         this.vitalisMap.centerOnPlayer();

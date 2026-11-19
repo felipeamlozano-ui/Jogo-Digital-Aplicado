@@ -108,15 +108,18 @@
     return R * c;
   }
 
-  // --- Location Manager (Real GPS First + Simulator Fallback) ---
+  // --- Location Manager (Real GPS First + Accuracy Filter + Manual Calibration + Simulator) ---
+  const MANUAL_PIN_KEY = 'vitalis_manual_pin_v1';
+
   class LocationManager {
     constructor(options = {}) {
-      // Fallback reference coordinates used ONLY if user explicitly selects Simulator mode
       this.fallbackLat = options.fallbackLat ?? -23.587416;
       this.fallbackLng = options.fallbackLng ?? -46.657634;
       this.lat = null;
       this.lng = null;
+      this.accuracy = null;
       this.hasFix = false;
+      this.manualPin = false;
       this.mode = options.initialMode || 'gps';
       this.watchId = null;
       this.onMove = options.onMove || (() => {});
@@ -127,14 +130,19 @@
     }
 
     requestGPS() {
+      this.manualPin = false;
+      try {
+        global.localStorage.removeItem(MANUAL_PIN_KEY);
+      } catch (_) {}
+
       if (!('geolocation' in navigator)) {
-        this.onGPSState('error', 'Geolocalização não suportada neste navegador.');
+        this.onGPSState('error', 'Geolocalização não suportada neste navegador.', null);
         return;
       }
 
       this.mode = 'gps';
       this.onModeChange('gps');
-      this.onGPSState('requesting', 'Solicitando acesso à sua localização GPS...');
+      this.onGPSState('requesting', 'Solicitando acesso à sua localização GPS...', null);
 
       const geoOpts = {
         enableHighAccuracy: true,
@@ -149,26 +157,48 @@
         },
         (err) => {
           const msg = this._formatGeoError(err);
-          this.onGPSState('error', msg);
+          this.onGPSState('error', msg, null);
         },
         geoOpts
       );
     }
 
     _handlePosition(pos) {
+      if (this.manualPin) return;
       const newLat = pos.coords.latitude;
       const newLng = pos.coords.longitude;
+      const accuracy = typeof pos.coords.accuracy === 'number' ? Math.round(pos.coords.accuracy) : null;
       const dist = this.hasFix ? haversineDistance(this.lat, this.lng, newLat, newLng) : 0;
-      const isFirstFix = !this.hasFix;
 
+      // Ignore noisy indoor/Wi-Fi GPS jitter jumps smaller than the uncertainty radius
+      if (this.hasFix && accuracy !== null && accuracy > 100 && dist < accuracy) {
+        this.accuracy = accuracy;
+        this.onGPSState('ready', 'GPS atualizado', accuracy);
+        return;
+      }
+
+      const isFirstFix = !this.hasFix;
       this.lat = newLat;
       this.lng = newLng;
+      this.accuracy = accuracy;
       this.hasFix = true;
 
-      if (isFirstFix) {
-        this.onGPSState('ready', 'GPS conectado');
-      }
-      this.onMove(this.lat, this.lng, dist < 5000 ? dist : 0, isFirstFix);
+      this.onGPSState('ready', 'GPS conectado', accuracy);
+      this.onMove(this.lat, this.lng, dist < 5000 ? dist : 0, isFirstFix, accuracy);
+    }
+
+    setManualPosition(lat, lng) {
+      this._stopWatch();
+      this.manualPin = true;
+      this.lat = Number(lat);
+      this.lng = Number(lng);
+      this.accuracy = 5;
+      this.hasFix = true;
+      try {
+        global.localStorage.setItem(MANUAL_PIN_KEY, JSON.stringify({ lat: this.lat, lng: this.lng }));
+      } catch (_) {}
+      this.onGPSState('manual', 'Posição ajustada manualmente', 5);
+      this.onMove(this.lat, this.lng, 0, true, 5);
     }
 
     _formatGeoError(err) {
@@ -184,14 +214,16 @@
         this.requestGPS();
       } else {
         this._stopWatch();
+        this.manualPin = false;
         this.mode = 'simulator';
         if (!this.hasFix) {
           this.lat = this.fallbackLat;
           this.lng = this.fallbackLng;
+          this.accuracy = 5;
           this.hasFix = true;
-          this.onMove(this.lat, this.lng, 0, true);
+          this.onMove(this.lat, this.lng, 0, true, 5);
         }
-        this.onGPSState('ready', 'Modo Simulador ativo');
+        this.onGPSState('ready', 'Modo Simulador ativo', 5);
         this.onModeChange('simulator');
       }
     }
@@ -202,7 +234,7 @@
         (pos) => this._handlePosition(pos),
         (err) => {
           if (!this.hasFix) {
-            this.onGPSState('error', this._formatGeoError(err));
+            this.onGPSState('error', this._formatGeoError(err), null);
           }
         },
         geoOpts
@@ -229,7 +261,88 @@
       else if (dir === 'W') this.lng -= lngStep;
 
       const dist = haversineDistance(oldLat, oldLng, this.lat, this.lng);
-      this.onMove(this.lat, this.lng, dist, false);
+      this.onMove(this.lat, this.lng, dist, false, 5);
+    }
+  }
+
+  // --- Live Step Pedometer (Continuous DeviceMotion Walking Detector) ---
+  class StepPedometer {
+    constructor(options = {}) {
+      this.onStep = options.onStep || (() => {});
+      this.onStatus = options.onStatus || (() => {});
+      this.steps = 0;
+      this.stepLengthM = options.stepLengthM || 0.75;
+      this.running = false;
+      this._handler = null;
+      this._lastStepTime = 0;
+      this._aboveThreshold = false;
+    }
+
+    isSupported() {
+      return typeof global.DeviceMotionEvent !== 'undefined';
+    }
+
+    async start() {
+      if (this.running || !this.isSupported()) return false;
+
+      if (typeof global.DeviceMotionEvent.requestPermission === 'function') {
+        try {
+          const res = await global.DeviceMotionEvent.requestPermission();
+          if (res !== 'granted') {
+            this.onStatus('Permissão de pedômetro negada');
+            return false;
+          }
+        } catch (_) {
+          this.onStatus('Toque para ativar pedômetro');
+          return false;
+        }
+      }
+
+      this.running = true;
+      this._handler = (event) => {
+        if (!this.running) return;
+        const hasLinear = event.acceleration && event.acceleration.x !== null;
+        const acc = hasLinear ? event.acceleration : event.accelerationIncludingGravity;
+        if (!acc) return;
+
+        const x = acc.x || 0;
+        const y = acc.y || 0;
+        const z = acc.z || 0;
+        const mag = Math.sqrt(x * x + y * y + z * z);
+
+        // Walking peak threshold: ~2.4 m/s^2 linear or ~12.2 m/s^2 with gravity
+        const highThresh = hasLinear ? 2.4 : 12.2;
+        const lowThresh = hasLinear ? 1.1 : 10.6;
+        const now = Date.now();
+
+        if (!this._aboveThreshold && mag > highThresh) {
+          this._aboveThreshold = true;
+          const delta = now - this._lastStepTime;
+          // Cadence filter: 280ms to 1100ms (or initial step after >280ms)
+          if (this._lastStepTime === 0 || (delta >= 280 && delta <= 1100) || delta > 1100) {
+            this._lastStepTime = now;
+            this.steps += 1;
+            this.onStep({
+              steps: this.steps,
+              stepDistanceM: this.stepLengthM
+            });
+          }
+        } else if (this._aboveThreshold && mag < lowThresh) {
+          this._aboveThreshold = false;
+        }
+      };
+
+      global.addEventListener('devicemotion', this._handler);
+      this.onStatus('Pedômetro ativo');
+      return true;
+    }
+
+    stop() {
+      this.running = false;
+      if (this._handler) {
+        global.removeEventListener('devicemotion', this._handler);
+        this._handler = null;
+      }
     }
   }
 
@@ -422,6 +535,7 @@
     SoundFX,
     haversineDistance,
     LocationManager,
+    StepPedometer,
     ExerciseTracker,
     CameraAR
   };
