@@ -1,0 +1,25 @@
+{
+  "name": "Educação Física Digital",
+  "short_name": "EduFísica",
+  "description": "Jogo de atividade física estilo Pokémon GO com criaturas Vitalis, GPS, AR Lite e desafios corporais.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230f172a'/%3E%3Ccircle cx='96' cy='96' r='64' fill='%2310b981' opacity='0.2'/%3E%3Ccircle cx='96' cy='96' r='44' fill='%2310b981'/%3E%3Cpath d='M86 68l28 24h-18l10 32-28-24h18z' fill='%23ffffff'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230f172a'/%3E%3Ccircle cx='256' cy='256' r='170' fill='%2310b981' opacity='0.2'/%3E%3Ccircle cx='256' cy='256' r='120' fill='%2310b981'/%3E%3Cpath d='M230 180l75 64h-48l26 88-75-64h48z' fill='%23ffffff'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

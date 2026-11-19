@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Educação Física Digital</title>
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Top HUD -->
+    <header id="top-hud" class="glass-panel">
+      <div class="hud-left">
+        <div class="level-badge" title="Nível do Jogador">
+          <span class="level-label">NV</span>
+          <span id="hud-level">1</span>
+        </div>
+        <div class="player-meta">
+          <div class="player-name-row">
+            <span id="hud-username">Atleta</span>
+            <span id="hud-xp-text" class="xp-text">0 / 100 XP</span>
+          </div>
+          <div class="xp-bar">
+            <div id="hud-xp-fill" class="xp-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-stats">
+        <div class="stat-pill" title="Calorias Queimadas">
+          <span class="stat-icon">🔥</span>
+          <span id="hud-calories">0 kcal</span>
+        </div>
+        <div class="stat-pill" title="Distância Percorrida">
+          <span class="stat-icon">🏃</span>
+          <span id="hud-distance">0 m</span>
+        </div>
+      </div>
+
+      <button id="btn-mode-toggle" class="mode-btn mode-sim" type="button" title="Alternar entre GPS Real e Simulador">
+        <span class="mode-dot"></span>
+        <span id="mode-label">Simulador</span>
+      </button>
+    </header>
+
+    <!-- Main Views -->
+    <main id="main-content">
+      <!-- Map View -->
+      <section id="view-map" class="view active">
+        <div id="map"></div>
+
+        <!-- Floating Map Actions -->
+        <div class="map-actions">
+          <button id="btn-center-map" class="fab-btn" type="button" title="Centralizar no jogador" aria-label="Centralizar no jogador">
+            🎯
+          </button>
+          <button id="btn-refresh-spawns" class="fab-btn" type="button" title="Buscar Vitalis próximos" aria-label="Buscar Vitalis próximos">
+            🔄
+          </button>
+        </div>
+
+        <!-- Nearby Hint Banner -->
+        <div id="map-hint" class="map-hint glass-panel">
+          Toque em um <strong>Vitalis</strong> dentro do raio verde (60m) para iniciar o desafio!
+        </div>
+
+        <!-- Desktop Simulator Joystick -->
+        <div id="simulator-controls" class="simulator-pad glass-panel" aria-label="Controle Simulador">
+          <div class="sim-title">Simulador (WASD / Setas)</div>
+          <div class="dpad">
+            <button class="dpad-btn dpad-n" data-dir="N" type="button" aria-label="Mover para Norte">▲</button>
+            <button class="dpad-btn dpad-w" data-dir="W" type="button" aria-label="Mover para Oeste">◀</button>
+            <div class="dpad-center">🧭</div>
+            <button class="dpad-btn dpad-e" data-dir="E" type="button" aria-label="Mover para Leste">▶</button>
+            <button class="dpad-btn dpad-s" data-dir="S" type="button" aria-label="Mover para Sul">▼</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- FitDex View -->
+      <section id="view-fitdex" class="view scrollable-view">
+        <div class="view-header">
+          <h2>📖 FitDex Vitalis</h2>
+          <p id="fitdex-summary" class="view-subtitle">Carregando criaturas...</p>
+        </div>
+        <div id="fitdex-grid" class="fitdex-grid"></div>
+      </section>
+
+      <!-- Missions View -->
+      <section id="view-missions" class="view scrollable-view">
+        <div class="view-header">
+          <h2>🎯 Missões Ativas</h2>
+          <p class="view-subtitle">Complete metas físicas para ganhar XP extra</p>
+        </div>
+        <div id="missions-list" class="missions-list"></div>
+      </section>
+
+      <!-- Profile & Leaderboard View -->
+      <section id="view-profile" class="view scrollable-view">
+        <div class="view-header">
+          <h2>🏆 Perfil &amp; Ranking</h2>
+        </div>
+
+        <div id="profile-card" class="profile-card glass-card">
+          <div class="profile-top">
+            <div class="profile-avatar">⚡</div>
+            <div>
+              <h3 id="profile-username">Atleta</h3>
+              <p id="profile-level-info">Nível 1 • 0 XP</p>
+            </div>
+          </div>
+          <div class="profile-metrics">
+            <div class="metric-box">
+              <span class="metric-val" id="profile-exercises">0</span>
+              <span class="metric-lbl">Exercícios</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-val" id="profile-distance">0 m</span>
+              <span class="metric-lbl">Distância</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-val" id="profile-calories">0</span>
+              <span class="metric-lbl">Calorias</span>
+            </div>
+          </div>
+          <div id="profile-badges" class="badges-row"></div>
+        </div>
+
+        <div class="leaderboard-section">
+          <h3>Ranking Global</h3>
+          <div id="leaderboard-list" class="leaderboard-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav" class="glass-panel">
+      <button class="nav-btn active" data-tab="map" type="button">
+        <span class="nav-icon">🗺️</span>
+        <span class="nav-label">Mapa</span>
+      </button>
+      <button class="nav-btn" data-tab="fitdex" type="button">
+        <span class="nav-icon">📖</span>
+        <span class="nav-label">FitDex</span>
+      </button>
+      <button class="nav-btn" data-tab="missions" type="button">
+        <span class="nav-icon">🎯</span>
+        <span class="nav-label">Missões</span>
+      </button>
+      <button class="nav-btn" data-tab="profile" type="button">
+        <span class="nav-icon">🏆</span>
+        <span class="nav-label">Perfil</span>
+      </button>
+    </nav>
+
+    <!-- Encounter & Physical Challenge Modal -->
+    <div id="encounter-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="enc-name">
+      <div class="modal-backdrop"></div>
+      <div class="modal-card">
+        <button id="btn-close-modal" class="modal-close" type="button" aria-label="Fechar desafio">✕</button>
+
+        <!-- AR Lite Stage -->
+        <div id="ar-stage" class="ar-stage">
+          <video id="ar-video" autoplay playsinline muted class="hidden"></video>
+          <div class="ar-grid-overlay"></div>
+          <div id="creature-svg-container" class="creature-stage-art"></div>
+          <button id="btn-toggle-ar" class="ar-toggle-btn" type="button">📷 Ativar Câmera AR</button>
+          <span id="enc-rarity" class="rarity-pill">Comum</span>
+        </div>
+
+        <!-- Active Challenge Body -->
+        <div id="challenge-body" class="modal-body">
+          <div class="enc-header">
+            <div>
+              <h2 id="enc-name">Vitalis</h2>
+              <p id="enc-desc" class="enc-desc"></p>
+            </div>
+            <span id="enc-type" class="type-pill">Cardio</span>
+          </div>
+
+          <div class="challenge-box">
+            <div class="challenge-meta">
+              <span id="enc-exercise" class="exercise-name">Polichinelos</span>
+              <span id="enc-xp" class="xp-reward">+50 XP</span>
+            </div>
+
+            <div class="progress-row">
+              <span id="challenge-progress-text" class="progress-big">0 / 10</span>
+              <span id="challenge-timer" class="timer-pill">⏱️ 0s</span>
+            </div>
+
+            <div class="challenge-bar">
+              <div id="challenge-progress-fill" class="challenge-fill" style="width: 0%;"></div>
+            </div>
+
+            <div id="motion-indicator" class="motion-status">
+              Pronto para começar! Use o sensor do celular ou o botão de ritmo.
+            </div>
+          </div>
+
+          <div class="challenge-actions">
+            <button id="btn-start-challenge" class="primary-btn" type="button">
+              ⚡ Iniciar Desafio
+            </button>
+            <button id="btn-manual-rep" class="tap-btn hidden" type="button">
+              💪 Registrar Movimento (Tap / Espaço)
+            </button>
+          </div>
+        </div>
+
+        <!-- Capture Celebration Body -->
+        <div id="capture-celebration" class="modal-body celebration-body hidden">
+          <div class="celebration-burst">✨</div>
+          <h2 id="celeb-title">Vitalis Capturado!</h2>
+          <p id="celeb-subtitle" class="celeb-sub"></p>
+          <div class="celeb-rewards">
+            <div class="reward-chip" id="celeb-xp">+50 XP</div>
+            <div class="reward-chip levelup-chip hidden" id="celeb-levelup">🎉 Subiu de Nível!</div>
+          </div>
+          <button id="btn-celeb-done" class="primary-btn" type="button">Continuar Explorando</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" aria-live="polite"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="./js/sensors.js"></script>
+  <script src="./js/map.js"></script>
+  <script src="./js/local_engine.js"></script>
+  <script src="./js/game.js"></script>
+</body>
+</html>
