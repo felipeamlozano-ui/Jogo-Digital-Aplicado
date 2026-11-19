@@ -62,7 +62,7 @@ class DatabaseAndLogicTests(unittest.TestCase):
             self.assertTrue({"players", "captures", "activity_logs"}.issubset(tables))
 
             players = conn.execute("SELECT id, username FROM players ORDER BY id").fetchall()
-            self.assertEqual(len(players), 5)
+            self.assertEqual(len(players), 1)
             self.assertEqual(players[0], (1, "AtletaVitalis"))
         finally:
             conn.close()
@@ -72,6 +72,7 @@ class DatabaseAndLogicTests(unittest.TestCase):
         player = get_player(self.db_path)
         self.assertEqual(player["id"], 1)
         self.assertEqual(player["username"], "AtletaVitalis")
+        self.assertEqual(player["weight_kg"], 70.0)
         self.assertEqual(player["level"], 1)
         self.assertEqual(player["xp"], 0)
         self.assertEqual(player["next_level_xp"], 100)
@@ -261,14 +262,52 @@ class ApiIntegrationTests(unittest.TestCase):
             for key in ("id", "title", "description", "target", "progress", "unit", "completed", "xp_reward"):
                 self.assertIn(key, m)
 
-        # 4. Check Leaderboard
+        # 4. Check Leaderboard (only real players)
         status, lb = self._get_json("/api/leaderboard")
         self.assertEqual(status, 200)
         self.assertIn("leaderboard", lb)
-        self.assertGreaterEqual(len(lb["leaderboard"]), 5)
+        self.assertEqual(len(lb["leaderboard"]), 1)
         self.assertEqual(lb["leaderboard"][0]["rank"], 1)
+        self.assertIn("total_calories", lb["leaderboard"][0])
         names = [entry["username"] for entry in lb["leaderboard"]]
-        self.assertIn("AtletaVitalis", names)
+        self.assertEqual(names, ["AtletaVitalis"])
+
+    def test_post_player_and_real_met_kcal(self) -> None:
+        # Update default player profile
+        status, updated = self._post_json(
+            "/api/player",
+            {"username": "FelipeReal", "weight_kg": 80.0},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["username"], "FelipeReal")
+        self.assertEqual(updated["weight_kg"], 80.0)
+
+        # Capture Voltix (Polichinelos, MET=8.0) for 60s at 80 kg -> 11.2 kcal
+        status, cap = self._post_json(
+            "/api/capture",
+            {
+                "creature_id": "voltix",
+                "exercise_type": "Polichinelos",
+                "duration_sec": 60,
+                "distance_m": 0,
+                "reps": 15,
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(cap["calories_burned"], 11.2)
+        self.assertEqual(cap["player"]["total_calories"], 11.2)
+
+        # Create a second real player and verify leaderboard lists both real players
+        status, second = self._post_json(
+            "/api/player",
+            {"username": "SegundoAtleta", "weight_kg": 65.0, "create": True},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(second["username"], "SegundoAtleta")
+
+        _, lb = self._get_json("/api/leaderboard")
+        names = {entry["username"] for entry in lb["leaderboard"]}
+        self.assertEqual(names, {"FelipeReal", "SegundoAtleta"})
 
     def test_post_capture_validation_errors(self) -> None:
         with self.assertRaises(HTTPError) as ctx:

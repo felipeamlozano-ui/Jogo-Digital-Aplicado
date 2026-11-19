@@ -171,8 +171,41 @@
           <div id="profile-badges" class="badges-row"></div>
         </div>
 
+        <!-- Edit Athlete & Shared Server Settings -->
+        <div class="profile-form-card glass-card">
+          <h3>Configurações do Atleta</h3>
+          <div class="form-grid">
+            <label class="form-field">
+              <span>Nome do Atleta</span>
+              <input id="input-username" type="text" maxlength="32" placeholder="Seu nome" />
+            </label>
+            <label class="form-field">
+              <span>Peso (kg)</span>
+              <input id="input-weight" type="number" min="25" max="250" step="0.5" placeholder="70" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button id="btn-save-profile" class="primary-btn" type="button">Salvar Perfil</button>
+            <button id="btn-switch-profile" class="secondary-btn" type="button">Trocar / Novo Atleta</button>
+          </div>
+
+          <div class="server-config-box">
+            <label class="form-field">
+              <span>Servidor Online (URL da API - opcional)</span>
+              <input id="input-server-url" type="url" placeholder="https://seu-servidor.exemplo.com" />
+            </label>
+            <div class="form-actions">
+              <button id="btn-save-server" class="secondary-btn" type="button">Conectar Servidor</button>
+              <button id="btn-clear-server" class="secondary-btn" type="button">Usar Local</button>
+            </div>
+          </div>
+        </div>
+
         <div class="leaderboard-section">
-          <h3>Ranking Global</h3>
+          <h3>Placar de Atletas</h3>
+          <p id="leaderboard-note" class="leaderboard-note hidden">
+            Placar local (atletas reais deste dispositivo). Para placar global entre vários celulares, conecte um servidor na aba Perfil.
+          </p>
           <div id="leaderboard-list" class="leaderboard-list"></div>
         </div>
       </section>
@@ -275,6 +308,7 @@
           <p id="celeb-subtitle" class="celeb-sub"></p>
           <div class="celeb-rewards">
             <div class="reward-chip" id="celeb-xp">+50 XP</div>
+            <div class="reward-chip" id="celeb-kcal">+0 kcal</div>
             <div class="reward-chip levelup-chip hidden" id="celeb-levelup">Novo Nível Alcançado</div>
           </div>
           <button id="btn-celeb-done" class="primary-btn" type="button">Continuar Explorando</button>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'educacao-fisica-v4';
+const CACHE_NAME = 'educacao-fisica-v5';
 const APP_SHELL = [
   './',
   './index.html',

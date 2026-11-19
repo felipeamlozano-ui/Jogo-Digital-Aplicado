@@ -1,7 +1,15 @@
 (function (global) {
   'use strict';
 
-  const STORAGE_KEY = 'vitalis_local_state_v2';
+  const STORAGE_KEY = 'vitalis_local_state_v3';
+
+  const EXERCISE_METS = {
+    Polichinelos: 8.0,
+    Agachamentos: 5.0,
+    'Corrida/Caminhada': 7.0,
+    Prancha: 3.8,
+    walking: 3.5
+  };
 
   const CREATURES = [
     {
@@ -10,10 +18,10 @@
       type: 'Cardio',
       rarity: 'Comum',
       exercise_type: 'Polichinelos',
+      met: 8.0,
       target_reps_or_sec: 15,
       unit: 'reps',
       xp_reward: 60,
-      calories_est: 15,
       svg_color: '#FF6B00',
       icon: 'bolt',
       description: 'Criatura elétrica que recarrega energia com saltos rápidos e coordenados.'
@@ -24,10 +32,10 @@
       type: 'Cardio',
       rarity: 'Incomum',
       exercise_type: 'Corrida/Caminhada',
+      met: 7.0,
       target_reps_or_sec: 30,
       unit: 'seg',
       xp_reward: 85,
-      calories_est: 25,
       svg_color: '#E11D48',
       icon: 'flame',
       description: 'Nascido do ritmo cardíaco acelerado, acompanha corredores em trajetos urbanos.'
@@ -38,10 +46,10 @@
       type: 'Cardio',
       rarity: 'Raro',
       exercise_type: 'Polichinelos',
+      met: 8.0,
       target_reps_or_sec: 25,
       unit: 'reps',
       xp_reward: 120,
-      calories_est: 28,
       svg_color: '#0284C7',
       icon: 'wind',
       description: 'Espírito dos ventos que aparece para quem mantém o fôlego elevado.'
@@ -52,10 +60,10 @@
       type: 'Força',
       rarity: 'Comum',
       exercise_type: 'Agachamentos',
+      met: 5.0,
       target_reps_or_sec: 12,
       unit: 'reps',
       xp_reward: 65,
-      calories_est: 18,
       svg_color: '#B45309',
       icon: 'shield',
       description: 'Guardião de base firme cuja couraça fortalece a cada agachamento.'
@@ -66,10 +74,10 @@
       type: 'Força',
       rarity: 'Raro',
       exercise_type: 'Agachamentos',
+      met: 5.0,
       target_reps_or_sec: 20,
       unit: 'reps',
       xp_reward: 130,
-      calories_est: 32,
       svg_color: '#475569',
       icon: 'shield',
       description: 'Colosso de aço que exige estabilidade e cadência de treino.'
@@ -80,10 +88,10 @@
       type: 'Força',
       rarity: 'Épico',
       exercise_type: 'Agachamentos',
+      met: 5.0,
       target_reps_or_sec: 30,
       unit: 'reps',
       xp_reward: 180,
-      calories_est: 45,
       svg_color: '#DC2626',
       icon: 'flame',
       description: 'Guardião de alta intensidade que desperta nos treinos de força.'
@@ -94,10 +102,10 @@
       type: 'Agilidade',
       rarity: 'Comum',
       exercise_type: 'Polichinelos',
+      met: 8.0,
       target_reps_or_sec: 18,
       unit: 'reps',
       xp_reward: 70,
-      calories_est: 16,
       svg_color: '#16A34A',
       icon: 'wind',
       description: 'Ágil como o vento, desafia reflexos e coordenação motora.'
@@ -108,10 +116,10 @@
       type: 'Agilidade',
       rarity: 'Incomum',
       exercise_type: 'Corrida/Caminhada',
+      met: 7.0,
       target_reps_or_sec: 45,
       unit: 'seg',
       xp_reward: 100,
-      calories_est: 30,
       svg_color: '#0891B2',
       icon: 'activity',
       description: 'Velocista das trilhas urbanas, sempre em busca de novos recordes.'
@@ -122,10 +130,10 @@
       type: 'Agilidade',
       rarity: 'Épico',
       exercise_type: 'Corrida/Caminhada',
+      met: 7.0,
       target_reps_or_sec: 60,
       unit: 'seg',
       xp_reward: 190,
-      calories_est: 42,
       svg_color: '#D97706',
       icon: 'bolt',
       description: 'Corredor cintilante que cruza quarteirões inteiros em segundos.'
@@ -136,10 +144,10 @@
       type: 'Equilíbrio',
       rarity: 'Comum',
       exercise_type: 'Prancha',
+      met: 3.8,
       target_reps_or_sec: 20,
       unit: 'seg',
       xp_reward: 75,
-      calories_est: 14,
       svg_color: '#9333EA',
       icon: 'target',
       description: 'Criatura serena que fortalece o core e o controle postural.'
@@ -150,10 +158,10 @@
       type: 'Equilíbrio',
       rarity: 'Incomum',
       exercise_type: 'Prancha',
+      met: 3.8,
       target_reps_or_sec: 35,
       unit: 'seg',
       xp_reward: 110,
-      calories_est: 22,
       svg_color: '#DB2777',
       icon: 'award',
       description: 'Guardião da estabilidade corporal, responde à firmeza abdominal.'
@@ -164,43 +172,46 @@
       type: 'Equilíbrio',
       rarity: 'Raro',
       exercise_type: 'Prancha',
+      met: 3.8,
       target_reps_or_sec: 50,
       unit: 'seg',
       xp_reward: 150,
-      calories_est: 30,
       svg_color: '#4F46E5',
       icon: 'compass',
       description: 'Dragão contemplativo que testa resistência isométrica ao máximo.'
     }
   ];
 
-  const NPC_PLAYERS = [
-    { username: 'CorredoraAna', level: 4, xp: 180, total_exercises: 24 },
-    { username: 'AtletaLucas', level: 3, xp: 90, total_exercises: 16 },
-    { username: 'FitMariana', level: 2, xp: 120, total_exercises: 9 },
-    { username: 'RunnerPedro', level: 1, xp: 75, total_exercises: 4 }
-  ];
+  function createDefaultProfile(id = 1, username = 'AtletaVitalis', weightKg = 70.0) {
+    return {
+      id,
+      username,
+      weight_kg: weightKg,
+      level: 1,
+      xp: 0,
+      total_distance_m: 0,
+      total_calories: 0,
+      total_exercises: 0,
+      captures: {}
+    };
+  }
 
   function loadState() {
     try {
       const raw = global.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.player) return parsed;
+        if (parsed && parsed.profiles && parsed.activeId && parsed.profiles[parsed.activeId]) {
+          return parsed;
+        }
       }
     } catch (_) {}
 
+    const def = createDefaultProfile(1, 'AtletaVitalis', 70.0);
     return {
-      player: {
-        id: 1,
-        username: 'AtletaVitalis',
-        level: 1,
-        xp: 0,
-        total_distance_m: 0,
-        total_calories: 0,
-        total_exercises: 0
-      },
-      captures: {}
+      activeId: 1,
+      nextId: 2,
+      profiles: { 1: def }
     };
   }
 
@@ -210,8 +221,13 @@
     } catch (_) {}
   }
 
-  function computeBadges(player, captures) {
+  function getActiveProfile(state) {
+    return state.profiles[state.activeId] || Object.values(state.profiles)[0];
+  }
+
+  function computeBadges(player) {
     const badges = [];
+    const captures = player.captures || {};
     const uniqueCount = Object.keys(captures).length;
     if (player.total_exercises >= 1) {
       badges.push({
@@ -248,25 +264,86 @@
     return badges;
   }
 
-  function buildPlayerResponse(state) {
-    const p = state.player;
+  function buildPlayerResponse(p) {
     return {
       id: p.id,
       username: p.username,
+      weight_kg: Number(p.weight_kg) || 70.0,
       level: p.level,
       xp: p.xp,
       next_level_xp: p.level * 100,
-      total_distance_m: Math.round(p.total_distance_m),
-      total_calories: Math.round(p.total_calories),
-      total_exercises: p.total_exercises,
-      badges: computeBadges(p, state.captures)
+      total_distance_m: Math.round(p.total_distance_m || 0),
+      total_calories: Number((p.total_calories || 0).toFixed(1)),
+      total_exercises: p.total_exercises || 0,
+      badges: computeBadges(p)
     };
   }
 
+  function calculateKcal(exerciseType, weightKg, durationSec, reps = 0, distanceM = 0) {
+    const met = EXERCISE_METS[exerciseType] || 5.0;
+    const w = Math.max(25, Math.min(250, Number(weightKg) || 70.0));
+    const effectiveSec = Math.max(Number(durationSec) || 1, (Number(reps) || 0) * 2);
+    let kcal = ((met * 3.5 * w) / 200.0) * (effectiveSec / 60.0);
+    if (distanceM > 0) {
+      const walkMinutes = (Number(distanceM) / 1.35) / 60.0;
+      kcal += ((EXERCISE_METS.walking * 3.5 * w) / 200.0) * walkMinutes;
+    }
+    return Number(kcal.toFixed(1));
+  }
+
   const LocalGameEngine = {
+    EXERCISE_METS,
+
+    calculateWalkingKcal(distanceM, weightKg = 70.0) {
+      if (!distanceM || distanceM <= 0) return 0;
+      const w = Math.max(25, Math.min(250, Number(weightKg) || 70.0));
+      const walkMinutes = (Number(distanceM) / 1.35) / 60.0;
+      return ((EXERCISE_METS.walking * 3.5 * w) / 200.0) * walkMinutes;
+    },
+
     getPlayer() {
       const state = loadState();
-      return buildPlayerResponse(state);
+      return buildPlayerResponse(getActiveProfile(state));
+    },
+
+    updatePlayerProfile({ username, weight_kg }) {
+      const state = loadState();
+      const p = getActiveProfile(state);
+      if (typeof username === 'string' && username.trim()) {
+        p.username = username.trim().slice(0, 32);
+      }
+      if (weight_kg !== undefined && weight_kg !== null && !Number.isNaN(Number(weight_kg))) {
+        p.weight_kg = Math.max(25, Math.min(250, Number(weight_kg)));
+      }
+      saveState(state);
+      return buildPlayerResponse(p);
+    },
+
+    switchOrCreatePlayer(username, weight_kg = 70.0) {
+      const cleanName = (username || '').trim().slice(0, 32);
+      if (!cleanName) {
+        return this.getPlayer();
+      }
+      const state = loadState();
+      const existing = Object.values(state.profiles).find(
+        (prof) => prof.username.toLowerCase() === cleanName.toLowerCase()
+      );
+      if (existing) {
+        state.activeId = existing.id;
+        if (weight_kg !== undefined && weight_kg !== null && !Number.isNaN(Number(weight_kg))) {
+          existing.weight_kg = Math.max(25, Math.min(250, Number(weight_kg)));
+        }
+        saveState(state);
+        return buildPlayerResponse(existing);
+      }
+      const newId = state.nextId || (Object.keys(state.profiles).length + 1);
+      state.nextId = newId + 1;
+      const w = Math.max(25, Math.min(250, Number(weight_kg) || 70.0));
+      const newProf = createDefaultProfile(newId, cleanName, w);
+      state.profiles[newId] = newProf;
+      state.activeId = newId;
+      saveState(state);
+      return buildPlayerResponse(newProf);
     },
 
     getSpawns(lat, lng) {
@@ -278,9 +355,7 @@
 
       for (let i = 0; i < count; i++) {
         const creature = CREATURES[Math.floor(Math.random() * CREATURES.length)];
-        // First 2 within interaction range (25-48m), remaining spread cleanly 55-180m
         const distM = i < 2 ? 25 + i * 12 + Math.random() * 10 : 55 + ((i - 2) / (count - 2)) * 115 + Math.random() * 12;
-        // Distribute angles evenly around the compass with slight jitter so spawns never stack
         const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
         const dLat = (distM * Math.cos(angle)) / 111320;
         const dLng = (distM * Math.sin(angle)) / (111320 * cosLat);
@@ -292,10 +367,10 @@
           type: creature.type,
           rarity: creature.rarity,
           exercise_type: creature.exercise_type,
+          met: creature.met,
           target: creature.target_reps_or_sec,
           unit: creature.unit,
           xp_reward: creature.xp_reward,
-          calories_est: creature.calories_est,
           svg_color: creature.svg_color,
           icon: creature.icon,
           description: creature.description,
@@ -308,15 +383,21 @@
 
     postCapture(body) {
       const state = loadState();
+      const p = getActiveProfile(state);
       const creature = CREATURES.find((c) => c.id === body.creature_id) || CREATURES[0];
       const xpGained = creature.xp_reward;
-      const caloriesBurned = creature.calories_est;
       const distM = Math.max(0, Number(body.distance_m) || 0);
+      const caloriesBurned = calculateKcal(
+        body.exercise_type || creature.exercise_type,
+        p.weight_kg,
+        body.duration_sec,
+        body.reps,
+        distM
+      );
 
-      const p = state.player;
       p.total_exercises += 1;
       p.total_distance_m += distM;
-      p.total_calories += caloriesBurned;
+      p.total_calories = Number(((p.total_calories || 0) + caloriesBurned).toFixed(1));
       p.xp += xpGained;
 
       let leveledUp = false;
@@ -326,13 +407,13 @@
         leveledUp = true;
       }
 
-      if (!state.captures[creature.id]) {
-        state.captures[creature.id] = {
+      if (!p.captures[creature.id]) {
+        p.captures[creature.id] = {
           count: 1,
           first_captured_at: new Date().toISOString()
         };
       } else {
-        state.captures[creature.id].count += 1;
+        p.captures[creature.id].count += 1;
       }
 
       saveState(state);
@@ -342,15 +423,17 @@
         xp_gained: xpGained,
         calories_burned: caloriesBurned,
         leveled_up: leveledUp,
-        player: buildPlayerResponse(state)
+        player: buildPlayerResponse(p)
       };
     },
 
     getFitdex() {
       const state = loadState();
+      const p = getActiveProfile(state);
+      const captures = p.captures || {};
       return {
         creatures: CREATURES.map((c) => {
-          const cap = state.captures[c.id];
+          const cap = captures[c.id];
           return {
             ...c,
             captured_count: cap ? cap.count : 0,
@@ -362,8 +445,8 @@
 
     getMissions() {
       const state = loadState();
-      const p = state.player;
-      const uniqueCount = Object.keys(state.captures).length;
+      const p = getActiveProfile(state);
+      const uniqueCount = Object.keys(p.captures || {}).length;
       const missions = [
         {
           id: 'm_exercises_3',
@@ -411,19 +494,23 @@
 
     getLeaderboard() {
       const state = loadState();
-      const p = state.player;
-      const all = [
-        ...NPC_PLAYERS,
-        {
-          username: p.username,
-          level: p.level,
-          xp: p.xp,
-          total_exercises: p.total_exercises
-        }
-      ];
-      all.sort((a, b) => (b.level - a.level) || (b.xp - a.xp) || (b.total_exercises - a.total_exercises));
+      const realPlayers = Object.values(state.profiles).map((p) => ({
+        id: p.id,
+        username: p.username,
+        level: p.level,
+        xp: p.xp,
+        total_calories: Number((p.total_calories || 0).toFixed(1)),
+        total_exercises: p.total_exercises || 0
+      }));
+      realPlayers.sort(
+        (a, b) =>
+          (b.level - a.level) ||
+          (b.xp - a.xp) ||
+          (b.total_calories - a.total_calories) ||
+          (b.total_exercises - a.total_exercises)
+      );
       return {
-        leaderboard: all.map((entry, idx) => ({
+        leaderboard: realPlayers.map((entry, idx) => ({
           rank: idx + 1,
           ...entry
         }))

@@ -22,6 +22,7 @@ from backend.database import (
     get_player,
     init_db,
     record_capture,
+    upsert_player,
 )
 
 DEFAULT_LAT = -23.5505
@@ -73,6 +74,7 @@ def generate_spawns(lat: float, lng: float, count: int = 8) -> list[dict]:
                 "unit": creature["unit"],
                 "xp_reward": creature["xp_reward"],
                 "calories_est": creature["calories_est"],
+                "met": creature["met"],
                 "svg_color": creature["svg_color"],
                 "icon": creature["icon"],
                 "emoji": creature["emoji"],
@@ -149,16 +151,47 @@ class VitalisRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/capture":
             self._handle_capture()
             return
+        if parsed.path == "/api/player":
+            self._handle_player_post()
+            return
         if parsed.path.startswith("/api/"):
             self._send_error_json("Endpoint não encontrado.", HTTPStatus.NOT_FOUND)
             return
         self._send_error_json("Método não permitido.", HTTPStatus.METHOD_NOT_ALLOWED)
 
+    def _read_json_body(self) -> Optional[dict]:
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_error_json("Header Content-Length inválido.")
+            return None
+
+        if content_length <= 0 or content_length > 1024 * 64:
+            self._send_error_json("Corpo da requisição vazio ou muito grande.")
+            return None
+
+        raw_body = self.rfile.read(content_length)
+        try:
+            data = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_error_json("JSON inválido.")
+            return None
+
+        if not isinstance(data, dict):
+            self._send_error_json("O corpo JSON deve ser um objeto.")
+            return None
+        return data
+
+    def _parse_player_id(self, query: dict[str, list[str]]) -> int:
+        raw = query.get("player_id", ["1"])[0]
+        return int(raw)
+
     def _handle_api_get(self, path: str, query: dict[str, list[str]]) -> None:
         db_path = self.server.db_path
         try:
             if path == "/api/player":
-                self._send_json(get_player(db_path=db_path))
+                player_id = self._parse_player_id(query)
+                self._send_json(get_player(db_path=db_path, player_id=player_id))
                 return
 
             if path == "/api/spawns":
@@ -177,11 +210,13 @@ class VitalisRequestHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/fitdex":
-                self._send_json({"creatures": get_fitdex(db_path=db_path)})
+                player_id = self._parse_player_id(query)
+                self._send_json({"creatures": get_fitdex(db_path=db_path, player_id=player_id)})
                 return
 
             if path == "/api/missions":
-                self._send_json({"missions": get_missions(db_path=db_path)})
+                player_id = self._parse_player_id(query)
+                self._send_json({"missions": get_missions(db_path=db_path, player_id=player_id)})
                 return
 
             if path == "/api/leaderboard":
@@ -189,29 +224,55 @@ class VitalisRequestHandler(BaseHTTPRequestHandler):
                 return
 
             self._send_error_json("Endpoint não encontrado.", HTTPStatus.NOT_FOUND)
+        except ValueError as exc:
+            self._send_error_json(str(exc), HTTPStatus.BAD_REQUEST)
         except Exception as exc:
             self._send_error_json(f"Erro interno: {exc}", HTTPStatus.INTERNAL_SERVER_ERROR)
 
+    def _handle_player_post(self) -> None:
+        data = self._read_json_body()
+        if data is None:
+            return
+
+        username = data.get("username")
+        if username is not None and not isinstance(username, str):
+            self._send_error_json("Campo 'username' deve ser uma string.")
+            return
+
+        weight_kg = data.get("weight_kg")
+        if weight_kg is not None:
+            try:
+                weight_kg = float(weight_kg)
+            except (TypeError, ValueError):
+                self._send_error_json("Campo 'weight_kg' deve ser numérico.")
+                return
+
+        player_id = data.get("player_id")
+        if player_id is not None:
+            try:
+                player_id = int(player_id)
+            except (TypeError, ValueError):
+                self._send_error_json("Campo 'player_id' deve ser um inteiro.")
+                return
+
+        create = bool(data.get("create", False))
+        try:
+            player = upsert_player(
+                username=username,
+                weight_kg=weight_kg,
+                player_id=player_id,
+                create=create,
+                db_path=self.server.db_path,
+            )
+        except ValueError as exc:
+            self._send_error_json(str(exc), HTTPStatus.BAD_REQUEST)
+            return
+
+        self._send_json(player, status=HTTPStatus.OK)
+
     def _handle_capture(self) -> None:
-        try:
-            content_length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            self._send_error_json("Header Content-Length inválido.")
-            return
-
-        if content_length <= 0 or content_length > 1024 * 64:
-            self._send_error_json("Corpo da requisição vazio ou muito grande.")
-            return
-
-        raw_body = self.rfile.read(content_length)
-        try:
-            data = json.loads(raw_body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            self._send_error_json("JSON inválido.")
-            return
-
-        if not isinstance(data, dict):
-            self._send_error_json("O corpo JSON deve ser um objeto.")
+        data = self._read_json_body()
+        if data is None:
             return
 
         creature_id = data.get("creature_id")
@@ -224,6 +285,7 @@ class VitalisRequestHandler(BaseHTTPRequestHandler):
             duration_sec = float(data.get("duration_sec", 0) or 0)
             distance_m = float(data.get("distance_m", 0) or 0)
             reps = int(data.get("reps", 0) or 0)
+            player_id = int(data.get("player_id", 1) or 1)
         except (TypeError, ValueError):
             self._send_error_json("Campos numéricos inválidos.")
             return
@@ -240,6 +302,7 @@ class VitalisRequestHandler(BaseHTTPRequestHandler):
                 distance_m=distance_m,
                 reps=reps,
                 db_path=self.server.db_path,
+                player_id=player_id,
             )
         except ValueError as exc:
             self._send_error_json(str(exc), HTTPStatus.BAD_REQUEST)

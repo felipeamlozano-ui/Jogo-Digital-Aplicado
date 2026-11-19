@@ -2,6 +2,13 @@
 
 from typing import Optional
 
+EXERCISE_MET: dict[str, float] = {
+    "Polichinelos": 8.0,
+    "Agachamentos": 5.0,
+    "Corrida/Caminhada": 7.0,
+    "Prancha": 3.8,
+}
+
 CREATURES: list[dict] = [
     {
         "id": "voltix",
@@ -190,10 +197,20 @@ _CREATURES_BY_ID: dict[str, dict] = {c["id"]: c for c in CREATURES}
 
 def get_all_creatures() -> list[dict]:
     """Return a copy of all Vitalis creatures in the catalog."""
-    return [dict(c) for c in CREATURES]
+    return [
+        {**c, "met": EXERCISE_MET.get(c["exercise_type"], 5.0)}
+        for c in CREATURES
+    ]
 
 
 def get_creature_by_id(creature_id: str) -> Optional[dict]:
     """Return a creature dict by its ID, or None if not found."""
     creature = _CREATURES_BY_ID.get(creature_id)
-    return dict(creature) if creature else None
+    if not creature:
+        return None
+    return {**creature, "met": EXERCISE_MET.get(creature["exercise_type"], 5.0)}
+
+
+def get_exercise_met(exercise_type: str) -> float:
+    """Return the MET value for a given exercise type."""
+    return EXERCISE_MET.get(exercise_type, 5.0)

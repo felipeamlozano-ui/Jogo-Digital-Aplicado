@@ -73,12 +73,14 @@
       this.arActive = false;
       this.sessionDistanceSinceSpawnFetch = 0;
       this.pendingSessionDistance = 0;
+      this.pendingWalkingKcal = 0;
       this.liveSteps = 0;
       this.liveStepDistanceM = 0;
       this.lastGpsMoveTime = 0;
       this.calibrating = false;
       this.lowAccuracyWarned = false;
-      this.useLocalEngine = global.location.hostname.endsWith('github.io');
+      this.serverUrl = this._loadServerUrl();
+      this.useLocalEngine = !this.serverUrl && global.location.hostname.endsWith('github.io');
 
       this.location = new LocationManager({
         initialMode: 'gps',
@@ -120,6 +122,21 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       }
+    }
+
+    _loadServerUrl() {
+      try {
+        const raw = global.localStorage.getItem('vitalis_server_url_v1');
+        return raw ? raw.trim().replace(/\/+$/, '') : '';
+      } catch (_) {
+        return '';
+      }
+    }
+
+    _resolveApiUrl(url) {
+      if (!this.serverUrl) return url;
+      const clean = url.startsWith('./') ? url.slice(1) : url;
+      return `${this.serverUrl}${clean.startsWith('/') ? clean : '/' + clean}`;
     }
 
     handleGPSState(state, message, accuracy) {
@@ -174,10 +191,14 @@
 
     handleStep(steps, stepDistanceM) {
       this.liveSteps = steps;
-      // Add step distance when GPS hasn't delivered a movement delta in the last 3 seconds
+      // Add step distance & walking MET kcal when GPS hasn't delivered a movement delta in the last 3 seconds
       if (Date.now() - this.lastGpsMoveTime > 3000) {
         this.liveStepDistanceM += stepDistanceM;
         this.pendingSessionDistance += stepDistanceM;
+        const weightKg = (this.player && this.player.weight_kg) || 70.0;
+        if (global.LocalGameEngine) {
+          this.pendingWalkingKcal += global.LocalGameEngine.calculateWalkingKcal(stepDistanceM, weightKg);
+        }
       }
       this.renderHUD();
     }
@@ -209,7 +230,7 @@
         return this._localDispatchGet(url);
       }
       try {
-        const res = await fetch(url);
+        const res = await fetch(this._resolveApiUrl(url));
         const ct = res.headers.get('content-type') || '';
         if (!res.ok || !ct.includes('application/json')) {
           throw new Error(`HTTP ${res.status}`);
@@ -229,7 +250,7 @@
         return this._localDispatchPost(url, body);
       }
       try {
-        const res = await fetch(url, {
+        const res = await fetch(this._resolveApiUrl(url), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
@@ -288,6 +309,10 @@
         this.lastGpsMoveTime = Date.now();
         this.pendingSessionDistance += deltaM;
         this.sessionDistanceSinceSpawnFetch += deltaM;
+        const weightKg = (this.player && this.player.weight_kg) || 70.0;
+        if (global.LocalGameEngine) {
+          this.pendingWalkingKcal += global.LocalGameEngine.calculateWalkingKcal(deltaM, weightKg);
+        }
         this.renderHUD();
       }
 
@@ -326,7 +351,8 @@
 
       document.getElementById('hud-xp-text').textContent = `${xp} / ${nextXp} XP`;
       document.getElementById('hud-xp-fill').style.width = `${pct}%`;
-      document.getElementById('hud-calories').textContent = `${Math.round(this.player.total_calories || 0)} kcal`;
+      const liveKcal = (this.player.total_calories || 0) + this.pendingWalkingKcal;
+      document.getElementById('hud-calories').textContent = `${liveKcal.toFixed(1)} kcal`;
       const liveDist = (this.player.total_distance_m || 0) + this.pendingSessionDistance;
       document.getElementById('hud-distance').textContent = formatDistance(liveDist);
       const stepsEl = document.getElementById('hud-steps');
@@ -431,10 +457,22 @@
         this.renderHUD();
 
         document.getElementById('profile-username').textContent = player.username || 'Atleta';
-        document.getElementById('profile-level-info').textContent = `Nível ${player.level} • ${player.xp} XP`;
+        document.getElementById('profile-level-info').textContent = `Nível ${player.level} • ${player.xp} XP • ${player.weight_kg || 70} kg`;
         document.getElementById('profile-exercises').textContent = player.total_exercises || 0;
         document.getElementById('profile-distance').textContent = formatDistance(player.total_distance_m || 0);
-        document.getElementById('profile-calories').textContent = Math.round(player.total_calories || 0);
+        document.getElementById('profile-calories').textContent = Number(player.total_calories || 0).toFixed(1);
+
+        const uInput = document.getElementById('input-username');
+        const wInput = document.getElementById('input-weight');
+        const sInput = document.getElementById('input-server-url');
+        if (uInput) uInput.value = player.username || '';
+        if (wInput) wInput.value = player.weight_kg || 70;
+        if (sInput) sInput.value = this.serverUrl || '';
+
+        const lbNote = document.getElementById('leaderboard-note');
+        if (lbNote) {
+          lbNote.classList.toggle('hidden', !this.useLocalEngine);
+        }
 
         const badgesEl = document.getElementById('profile-badges');
         const badges = Array.isArray(player.badges) ? player.badges : [];
@@ -569,6 +607,7 @@
       try {
         const distToSend = Math.round(this.pendingSessionDistance);
         this.pendingSessionDistance = 0;
+        this.pendingWalkingKcal = 0;
 
         const payload = {
           creature_id: spawn.creature_id,
@@ -595,6 +634,10 @@
         document.getElementById('celeb-subtitle').textContent =
           `Desafio de ${spawn.exercise_type} concluído em ${result.duration_sec}s.`;
         document.getElementById('celeb-xp').textContent = `+${res.xp_gained ?? spawn.xp_reward} XP`;
+        const kcalEl = document.getElementById('celeb-kcal');
+        if (kcalEl) {
+          kcalEl.textContent = `+${Number(res.calories_burned || 0).toFixed(1)} kcal`;
+        }
 
         const lvlChip = document.getElementById('celeb-levelup');
         if (res.leveled_up) {
@@ -708,6 +751,77 @@
           this.tracker.triggerRep();
         }
       });
+
+      const saveProfBtn = document.getElementById('btn-save-profile');
+      if (saveProfBtn) {
+        saveProfBtn.addEventListener('click', () => this.saveAthleteProfile(false));
+      }
+
+      const switchProfBtn = document.getElementById('btn-switch-profile');
+      if (switchProfBtn) {
+        switchProfBtn.addEventListener('click', () => this.saveAthleteProfile(true));
+      }
+
+      const saveServerBtn = document.getElementById('btn-save-server');
+      if (saveServerBtn) {
+        saveServerBtn.addEventListener('click', async () => {
+          const val = (document.getElementById('input-server-url')?.value || '').trim().replace(/\/+$/, '');
+          if (!val) {
+            showToast('Informe a URL do servidor.');
+            return;
+          }
+          try {
+            global.localStorage.setItem('vitalis_server_url_v1', val);
+          } catch (_) {}
+          this.serverUrl = val;
+          this.useLocalEngine = false;
+          await this.loadProfileAndLeaderboard();
+          showToast(this.useLocalEngine ? 'Servidor indisponível. Mantido modo local.' : 'Conectado ao servidor.');
+        });
+      }
+
+      const clearServerBtn = document.getElementById('btn-clear-server');
+      if (clearServerBtn) {
+        clearServerBtn.addEventListener('click', async () => {
+          try {
+            global.localStorage.removeItem('vitalis_server_url_v1');
+          } catch (_) {}
+          this.serverUrl = '';
+          this.useLocalEngine = global.location.hostname.endsWith('github.io');
+          await this.loadProfileAndLeaderboard();
+          showToast('Modo local ativado.');
+        });
+      }
+    }
+
+    async saveAthleteProfile(createNew = false) {
+      const username = (document.getElementById('input-username')?.value || '').trim();
+      const weightVal = parseFloat(document.getElementById('input-weight')?.value || '70');
+      const weight_kg = Number.isNaN(weightVal) ? 70.0 : Math.max(25, Math.min(250, weightVal));
+
+      if (!username) {
+        showToast('Digite o nome do atleta.');
+        return;
+      }
+
+      try {
+        if (this.useLocalEngine && global.LocalGameEngine) {
+          this.player = createNew
+            ? global.LocalGameEngine.switchOrCreatePlayer(username, weight_kg)
+            : global.LocalGameEngine.updatePlayerProfile({ username, weight_kg });
+        } else {
+          this.player = await this.apiPost('./api/player', {
+            player_id: createNew ? undefined : this.player?.id,
+            username,
+            weight_kg
+          });
+        }
+        this.renderHUD();
+        await this.loadProfileAndLeaderboard();
+        showToast(createNew ? `Atleta ${this.player.username} ativado.` : 'Perfil atualizado.');
+      } catch (_) {
+        showToast('Erro ao salvar perfil do atleta.');
+      }
     }
   }
 

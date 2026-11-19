@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Union
 
-from backend.creatures import get_all_creatures, get_creature_by_id
+from backend.creatures import get_all_creatures, get_creature_by_id, get_exercise_met
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "vitalis.db"
 
@@ -41,7 +41,7 @@ def _now_iso() -> str:
 
 
 def init_db(db_path: DbPath = None) -> None:
-    """Create tables if needed and seed the default player and sample leaderboard."""
+    """Create tables if needed and seed the default real player (no fake NPCs)."""
     conn = get_connection(db_path)
     try:
         with conn:
@@ -52,6 +52,7 @@ def init_db(db_path: DbPath = None) -> None:
                     username TEXT UNIQUE NOT NULL,
                     level INTEGER NOT NULL DEFAULT 1,
                     xp INTEGER NOT NULL DEFAULT 0,
+                    weight_kg REAL NOT NULL DEFAULT 70.0,
                     total_distance_m REAL NOT NULL DEFAULT 0.0,
                     total_calories REAL NOT NULL DEFAULT 0.0,
                     total_exercises INTEGER NOT NULL DEFAULT 0,
@@ -82,30 +83,21 @@ def init_db(db_path: DbPath = None) -> None:
                 """
             )
 
+            # Safe migration for existing databases lacking weight_kg
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(players)").fetchall()]
+            if "weight_kg" not in cols:
+                conn.execute("ALTER TABLE players ADD COLUMN weight_kg REAL NOT NULL DEFAULT 70.0")
+
             count = conn.execute("SELECT COUNT(*) FROM players").fetchone()[0]
             if count == 0:
                 now = _now_iso()
-                # Primary active player (id = 1)
+                # Primary active real player (id = 1)
                 conn.execute(
                     """
-                    INSERT INTO players (username, level, xp, total_distance_m, total_calories, total_exercises, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO players (username, level, xp, weight_kg, total_distance_m, total_calories, total_exercises, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    ("AtletaVitalis", 1, 0, 0.0, 0.0, 0, now),
-                )
-                # Sample community athletes for the leaderboard
-                sample_players = [
-                    ("MarinaFit", 5, 140, 3400.0, 420.0, 22, now),
-                    ("LucasRunner", 4, 80, 2850.0, 310.0, 16, now),
-                    ("SofiaZen", 3, 210, 1200.0, 195.0, 11, now),
-                    ("PedroForca", 2, 95, 650.0, 120.0, 7, now),
-                ]
-                conn.executemany(
-                    """
-                    INSERT INTO players (username, level, xp, total_distance_m, total_calories, total_exercises, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    sample_players,
+                    ("AtletaVitalis", 1, 0, 70.0, 0.0, 0.0, 0, now),
                 )
     finally:
         conn.close()
@@ -177,12 +169,14 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
 
 
 def _format_player(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
+    weight = float(row["weight_kg"]) if "weight_kg" in row.keys() and row["weight_kg"] else 70.0
     return {
         "id": row["id"],
         "username": row["username"],
         "level": row["level"],
         "xp": row["xp"],
         "next_level_xp": xp_for_next_level(row["level"]),
+        "weight_kg": round(weight, 1),
         "total_distance_m": round(float(row["total_distance_m"]), 1),
         "total_calories": round(float(row["total_calories"]), 1),
         "total_exercises": int(row["total_exercises"]),
@@ -198,6 +192,67 @@ def get_player(db_path: DbPath = None, player_id: int = 1) -> dict:
         if row is None:
             raise ValueError(f"Player {player_id} not found")
         return _format_player(conn, row)
+    finally:
+        conn.close()
+
+
+def upsert_player(
+    username: Optional[str] = None,
+    weight_kg: Optional[float] = None,
+    player_id: Optional[int] = None,
+    create: bool = False,
+    db_path: DbPath = None,
+) -> dict:
+    """Update an existing player profile or create a new real player."""
+    if weight_kg is not None:
+        weight_kg = float(weight_kg)
+        if weight_kg <= 0 or weight_kg > 500:
+            raise ValueError("weight_kg deve estar entre 1 e 500.")
+
+    if username is not None:
+        username = username.strip()
+        if not username:
+            raise ValueError("username não pode ser vazio.")
+        username = username[:40]
+
+    conn = get_connection(db_path)
+    try:
+        with conn:
+            if create:
+                if not username:
+                    raise ValueError("username é obrigatório para criar um novo atleta.")
+                existing = conn.execute(
+                    "SELECT * FROM players WHERE username = ?", (username,)
+                ).fetchone()
+                if existing is not None:
+                    return _format_player(conn, existing)
+                now = _now_iso()
+                w = weight_kg if weight_kg is not None else 70.0
+                cur = conn.execute(
+                    """
+                    INSERT INTO players (username, level, xp, weight_kg, total_distance_m, total_calories, total_exercises, created_at)
+                    VALUES (?, 1, 0, ?, 0.0, 0.0, 0, ?)
+                    """,
+                    (username, w, now),
+                )
+                new_row = conn.execute(
+                    "SELECT * FROM players WHERE id = ?", (cur.lastrowid,)
+                ).fetchone()
+                return _format_player(conn, new_row)
+
+            target_id = int(player_id) if player_id is not None else 1
+            row = conn.execute("SELECT * FROM players WHERE id = ?", (target_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"Player {target_id} not found")
+
+            new_username = username if username is not None else row["username"]
+            new_weight = weight_kg if weight_kg is not None else float(row["weight_kg"] or 70.0)
+            conn.execute(
+                "UPDATE players SET username = ?, weight_kg = ? WHERE id = ?",
+                (new_username, new_weight, target_id),
+            )
+            updated = conn.execute("SELECT * FROM players WHERE id = ?", (target_id,)).fetchone()
+            return _format_player(conn, updated)
     finally:
         conn.close()
 
@@ -223,8 +278,11 @@ def record_capture(
     if effort > target:
         xp_gained += min(30, int((effort - target) // 2))
 
-    calories_burned = float(creature["calories_est"]) + (float(distance_m) * 0.05)
-    calories_burned = round(calories_burned, 1)
+    ex_type = exercise_type or creature["exercise_type"]
+    met = float(get_exercise_met(ex_type))
+    effective_duration_sec = (
+        max(float(duration_sec), float(reps) * 2.0) if reps > 0 else float(duration_sec)
+    )
 
     now = _now_iso()
     conn = get_connection(db_path)
@@ -233,6 +291,13 @@ def record_capture(
             row = conn.execute("SELECT * FROM players WHERE id = ?", (player_id,)).fetchone()
             if row is None:
                 raise ValueError(f"Player {player_id} not found")
+
+            weight_kg = float(row["weight_kg"]) if row["weight_kg"] else 70.0
+            kcal = (met * 3.5 * weight_kg / 200.0) * (effective_duration_sec / 60.0)
+            if float(distance_m) > 0 and ex_type != "Corrida/Caminhada":
+                walking_sec = float(distance_m) / 1.4
+                kcal += (3.5 * 3.5 * weight_kg / 200.0) * (walking_sec / 60.0)
+            calories_burned = round(kcal, 1)
 
             conn.execute(
                 "INSERT INTO captures (player_id, creature_id, captured_at) VALUES (?, ?, ?)",
@@ -247,7 +312,7 @@ def record_capture(
                 (
                     player_id,
                     creature_id,
-                    exercise_type or creature["exercise_type"],
+                    ex_type,
                     float(duration_sec),
                     float(distance_m),
                     int(reps),
@@ -415,14 +480,14 @@ def get_missions(db_path: DbPath = None, player_id: int = 1) -> list[dict]:
 
 
 def get_leaderboard(db_path: DbPath = None, limit: int = 10) -> list[dict]:
-    """Return top players ordered by level, XP, and total exercises."""
+    """Return top real players ordered by level, XP, and total calories."""
     conn = get_connection(db_path)
     try:
         rows = conn.execute(
             """
-            SELECT username, level, xp, total_exercises
+            SELECT id, username, level, xp, total_calories, total_exercises
             FROM players
-            ORDER BY level DESC, xp DESC, total_exercises DESC, id ASC
+            ORDER BY level DESC, xp DESC, total_calories DESC, id ASC
             LIMIT ?
             """,
             (limit,),
@@ -430,9 +495,11 @@ def get_leaderboard(db_path: DbPath = None, limit: int = 10) -> list[dict]:
         return [
             {
                 "rank": idx + 1,
+                "id": int(r["id"]),
                 "username": r["username"],
                 "level": int(r["level"]),
                 "xp": int(r["xp"]),
+                "total_calories": round(float(r["total_calories"]), 1),
                 "total_exercises": int(r["total_exercises"]),
             }
             for idx, r in enumerate(rows)
