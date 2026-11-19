@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
 
-  const STORAGE_KEY = 'vitalis_local_state_v1';
+  const STORAGE_KEY = 'vitalis_local_state_v2';
 
   const CREATURES = [
     {
@@ -14,10 +14,9 @@
       unit: 'reps',
       xp_reward: 60,
       calories_est: 15,
-      svg_color: '#FF9800',
-      icon: '⚡',
-      emoji: '⚡',
-      description: 'Uma criatura elétrica que recarrega sua energia com saltos rápidos e coordenados.'
+      svg_color: '#FF6B00',
+      icon: 'bolt',
+      description: 'Criatura elétrica que recarrega energia com saltos rápidos e coordenados.'
     },
     {
       id: 'pulsor',
@@ -29,10 +28,9 @@
       unit: 'seg',
       xp_reward: 85,
       calories_est: 25,
-      svg_color: '#F44336',
-      icon: '🔥',
-      emoji: '🔥',
-      description: 'Nascido do ritmo cardíaco acelerado, adora acompanhar corredores ao ar livre.'
+      svg_color: '#E11D48',
+      icon: 'flame',
+      description: 'Nascido do ritmo cardíaco acelerado, acompanha corredores em trajetos urbanos.'
     },
     {
       id: 'aerowing',
@@ -44,10 +42,9 @@
       unit: 'reps',
       xp_reward: 120,
       calories_est: 28,
-      svg_color: '#03A9F4',
-      icon: '🪽',
-      emoji: '🪽',
-      description: 'Espírito dos ventos que só aparece para quem mantém o fôlego lá em cima.'
+      svg_color: '#0284C7',
+      icon: 'wind',
+      description: 'Espírito dos ventos que aparece para quem mantém o fôlego elevado.'
     },
     {
       id: 'ferrodon',
@@ -59,10 +56,9 @@
       unit: 'reps',
       xp_reward: 65,
       calories_est: 18,
-      svg_color: '#795548',
-      icon: '🪨',
-      emoji: '🪨',
-      description: 'Guardião das pernas firmes; sua couraça fica mais resistente a cada agachamento.'
+      svg_color: '#B45309',
+      icon: 'shield',
+      description: 'Guardião de base firme cuja couraça fortalece a cada agachamento.'
     },
     {
       id: 'titanox',
@@ -74,10 +70,9 @@
       unit: 'reps',
       xp_reward: 130,
       calories_est: 32,
-      svg_color: '#607D8B',
-      icon: '🛡️',
-      emoji: '🛡️',
-      description: 'Colosso de aço que respeita apenas atletas com base sólida e determinação.'
+      svg_color: '#475569',
+      icon: 'shield',
+      description: 'Colosso de aço que exige estabilidade e cadência de treino.'
     },
     {
       id: 'brasafor',
@@ -89,10 +84,9 @@
       unit: 'reps',
       xp_reward: 180,
       calories_est: 45,
-      svg_color: '#D32F2F',
-      icon: '🦁',
-      emoji: '🦁',
-      description: 'Lendário leão de magma cuja força desperta nos treinos mais intensos.'
+      svg_color: '#DC2626',
+      icon: 'flame',
+      description: 'Guardião de alta intensidade que desperta nos treinos de força.'
     },
     {
       id: 'zephyrin',
@@ -104,10 +98,9 @@
       unit: 'reps',
       xp_reward: 70,
       calories_est: 16,
-      svg_color: '#4CAF50',
-      icon: '🍃',
-      emoji: '🍃',
-      description: 'Ágil como uma folha ao vento, desafia seus reflexos e coordenação motora.'
+      svg_color: '#16A34A',
+      icon: 'wind',
+      description: 'Ágil como o vento, desafia reflexos e coordenação motora.'
     },
     {
       id: 'velocir',
@@ -119,10 +112,9 @@
       unit: 'seg',
       xp_reward: 100,
       calories_est: 30,
-      svg_color: '#00BCD4',
-      icon: '🐆',
-      emoji: '🐆',
-      description: 'Velocista nato das trilhas urbanas, sempre em busca de novos recordes.'
+      svg_color: '#0891B2',
+      icon: 'activity',
+      description: 'Velocista das trilhas urbanas, sempre em busca de novos recordes.'
     },
     {
       id: 'relampix',
@@ -134,10 +126,9 @@
       unit: 'seg',
       xp_reward: 190,
       calories_est: 42,
-      svg_color: '#FFC107',
-      icon: '🦊',
-      emoji: '🦊',
-      description: 'Raposa cintilante que cruza quarteirões inteiros em segundos.'
+      svg_color: '#D97706',
+      icon: 'bolt',
+      description: 'Corredor cintilante que cruza quarteirões inteiros em segundos.'
     },
     {
       id: 'equilibra',
@@ -149,10 +140,9 @@
       unit: 'seg',
       xp_reward: 75,
       calories_est: 14,
-      svg_color: '#9C27B0',
-      icon: '🧘',
-      emoji: '🧘',
-      description: 'Criatura serena que fortalece o core e a postura de quem mantém a calma.'
+      svg_color: '#9333EA',
+      icon: 'target',
+      description: 'Criatura serena que fortalece o core e o controle postural.'
     },
     {
       id: 'lotusaur',
@@ -164,10 +154,9 @@
       unit: 'seg',
       xp_reward: 110,
       calories_est: 22,
-      svg_color: '#E91E63',
-      icon: '🪷',
-      emoji: '🪷',
-      description: 'Guardião da estabilidade corporal, floresce quando o abdômen está firme.'
+      svg_color: '#DB2777',
+      icon: 'award',
+      description: 'Guardião da estabilidade corporal, responde à firmeza abdominal.'
     },
     {
       id: 'zenithon',
@@ -179,10 +168,9 @@
       unit: 'seg',
       xp_reward: 150,
       calories_est: 30,
-      svg_color: '#3F51B5',
-      icon: '🐉',
-      emoji: '🐉',
-      description: 'Dragão contemplativo que testa sua resistência isométrica ao máximo.'
+      svg_color: '#4F46E5',
+      icon: 'compass',
+      description: 'Dragão contemplativo que testa resistência isométrica ao máximo.'
     }
   ];
 
@@ -229,15 +217,15 @@
       badges.push({
         id: 'first_step',
         name: 'Primeiro Passo',
-        icon: '👟',
-        description: 'Completou seu primeiro desafio físico!'
+        icon: 'award',
+        description: 'Completou seu primeiro desafio físico.'
       });
     }
     if (uniqueCount >= 3) {
       badges.push({
         id: 'collector_3',
         name: 'Explorador Vitalis',
-        icon: '🧭',
+        icon: 'compass',
         description: 'Capturou 3 espécies diferentes de Vitalis.'
       });
     }
@@ -245,16 +233,16 @@
       badges.push({
         id: 'athlete_10',
         name: 'Atleta Dedicado',
-        icon: '💪',
-        description: 'Concluiu 10 exercícios.'
+        icon: 'trophy',
+        description: 'Concluiu 10 exercícios físicos.'
       });
     }
     if (player.total_distance_m >= 500) {
       badges.push({
         id: 'walker_500',
         name: 'Caminhante Urbano',
-        icon: '🏃',
-        description: 'Percorreu 500m explorando o mapa.'
+        icon: 'activity',
+        description: 'Percorreu 500 m explorando o mapa.'
       });
     }
     return badges;
@@ -307,7 +295,6 @@
           calories_est: creature.calories_est,
           svg_color: creature.svg_color,
           icon: creature.icon,
-          emoji: creature.emoji,
           description: creature.description,
           lat: Number((baseLat + dLat).toFixed(6)),
           lng: Number((baseLng + dLng).toFixed(6))

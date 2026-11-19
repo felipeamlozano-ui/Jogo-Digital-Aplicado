@@ -17,7 +17,7 @@
     <!-- Top HUD -->
     <header id="top-hud" class="glass-panel">
       <div class="hud-left">
-        <div class="level-badge" title="Nível do Jogador">
+        <div class="level-badge" title="Nível do Atleta">
           <span class="level-label">NV</span>
           <span id="hud-level">1</span>
         </div>
@@ -34,18 +34,18 @@
 
       <div class="hud-stats">
         <div class="stat-pill" title="Calorias Queimadas">
-          <span class="stat-icon">🔥</span>
+          <svg class="v-icon stat-svg-flame" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
           <span id="hud-calories">0 kcal</span>
         </div>
         <div class="stat-pill" title="Distância Percorrida">
-          <span class="stat-icon">🏃</span>
+          <svg class="v-icon stat-svg-activity" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           <span id="hud-distance">0 m</span>
         </div>
       </div>
 
-      <button id="btn-mode-toggle" class="mode-btn mode-sim" type="button" title="Alternar entre GPS Real e Simulador">
+      <button id="btn-mode-toggle" class="mode-btn mode-gps" type="button" title="Alternar entre GPS Real e Simulador">
         <span class="mode-dot"></span>
-        <span id="mode-label">Simulador</span>
+        <span id="mode-label">GPS Real</span>
       </button>
     </header>
 
@@ -55,30 +55,55 @@
       <section id="view-map" class="view active">
         <div id="map"></div>
 
+        <!-- Geolocation Permission / Status Overlay -->
+        <div id="location-overlay" class="location-overlay">
+          <div class="location-card glass-panel">
+            <div class="location-icon-ring">
+              <svg class="v-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+            </div>
+            <h3 id="location-overlay-title">Localização GPS</h3>
+            <p id="location-overlay-msg">Solicitando acesso à sua localização para posicionar o mapa e os desafios próximos.</p>
+            <div class="location-actions">
+              <button id="btn-retry-gps" class="primary-btn" type="button">Ativar localização</button>
+              <button id="btn-fallback-sim" class="secondary-btn" type="button">Usar modo simulador</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Floating Map Actions -->
         <div class="map-actions">
-          <button id="btn-center-map" class="fab-btn" type="button" title="Centralizar no jogador" aria-label="Centralizar no jogador">
-            🎯
+          <button id="btn-center-map" class="fab-btn" type="button" title="Centralizar no atleta" aria-label="Centralizar no atleta">
+            <svg class="v-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
           </button>
-          <button id="btn-refresh-spawns" class="fab-btn" type="button" title="Buscar Vitalis próximos" aria-label="Buscar Vitalis próximos">
-            🔄
+          <button id="btn-refresh-spawns" class="fab-btn" type="button" title="Atualizar Vitalis próximos" aria-label="Atualizar Vitalis próximos">
+            <svg class="v-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
 
         <!-- Nearby Hint Banner -->
         <div id="map-hint" class="map-hint glass-panel">
-          Toque em um <strong>Vitalis</strong> dentro do raio verde (60m) para iniciar o desafio!
+          Toque em um <strong>Vitalis</strong> dentro do raio de 60 m para iniciar o treino
         </div>
 
         <!-- Desktop Simulator Joystick -->
-        <div id="simulator-controls" class="simulator-pad glass-panel" aria-label="Controle Simulador">
+        <div id="simulator-controls" class="simulator-pad glass-panel hidden" aria-label="Controle Simulador">
           <div class="sim-title">Simulador (WASD / Setas)</div>
           <div class="dpad">
-            <button class="dpad-btn dpad-n" data-dir="N" type="button" aria-label="Mover para Norte">▲</button>
-            <button class="dpad-btn dpad-w" data-dir="W" type="button" aria-label="Mover para Oeste">◀</button>
-            <div class="dpad-center">🧭</div>
-            <button class="dpad-btn dpad-e" data-dir="E" type="button" aria-label="Mover para Leste">▶</button>
-            <button class="dpad-btn dpad-s" data-dir="S" type="button" aria-label="Mover para Sul">▼</button>
+            <button class="dpad-btn dpad-n" data-dir="N" type="button" aria-label="Mover para Norte">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <button class="dpad-btn dpad-w" data-dir="W" type="button" aria-label="Mover para Oeste">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="dpad-center" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+            </div>
+            <button class="dpad-btn dpad-e" data-dir="E" type="button" aria-label="Mover para Leste">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button class="dpad-btn dpad-s" data-dir="S" type="button" aria-label="Mover para Sul">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
           </div>
         </div>
       </section>
@@ -86,8 +111,8 @@
       <!-- FitDex View -->
       <section id="view-fitdex" class="view scrollable-view">
         <div class="view-header">
-          <h2>📖 FitDex Vitalis</h2>
-          <p id="fitdex-summary" class="view-subtitle">Carregando criaturas...</p>
+          <h2>FitDex Vitalis</h2>
+          <p id="fitdex-summary" class="view-subtitle">Carregando catálogo...</p>
         </div>
         <div id="fitdex-grid" class="fitdex-grid"></div>
       </section>
@@ -95,8 +120,8 @@
       <!-- Missions View -->
       <section id="view-missions" class="view scrollable-view">
         <div class="view-header">
-          <h2>🎯 Missões Ativas</h2>
-          <p class="view-subtitle">Complete metas físicas para ganhar XP extra</p>
+          <h2>Missões Ativas</h2>
+          <p class="view-subtitle">Metas de atividade física para acelerar seu progresso</p>
         </div>
         <div id="missions-list" class="missions-list"></div>
       </section>
@@ -104,15 +129,17 @@
       <!-- Profile & Leaderboard View -->
       <section id="view-profile" class="view scrollable-view">
         <div class="view-header">
-          <h2>🏆 Perfil &amp; Ranking</h2>
+          <h2>Perfil e Ranking</h2>
         </div>
 
         <div id="profile-card" class="profile-card glass-card">
           <div class="profile-top">
-            <div class="profile-avatar">⚡</div>
+            <div class="profile-avatar">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
             <div>
               <h3 id="profile-username">Atleta</h3>
-              <p id="profile-level-info">Nível 1 • 0 XP</p>
+              <p id="profile-level-info" class="view-subtitle">Nível 1 • 0 XP</p>
             </div>
           </div>
           <div class="profile-metrics">
@@ -142,19 +169,27 @@
     <!-- Bottom Navigation -->
     <nav id="bottom-nav" class="glass-panel">
       <button class="nav-btn active" data-tab="map" type="button">
-        <span class="nav-icon">🗺️</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+        </span>
         <span class="nav-label">Mapa</span>
       </button>
       <button class="nav-btn" data-tab="fitdex" type="button">
-        <span class="nav-icon">📖</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
         <span class="nav-label">FitDex</span>
       </button>
       <button class="nav-btn" data-tab="missions" type="button">
-        <span class="nav-icon">🎯</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        </span>
         <span class="nav-label">Missões</span>
       </button>
       <button class="nav-btn" data-tab="profile" type="button">
-        <span class="nav-icon">🏆</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        </span>
         <span class="nav-label">Perfil</span>
       </button>
     </nav>
@@ -163,14 +198,19 @@
     <div id="encounter-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="enc-name">
       <div class="modal-backdrop"></div>
       <div class="modal-card">
-        <button id="btn-close-modal" class="modal-close" type="button" aria-label="Fechar desafio">✕</button>
+        <button id="btn-close-modal" class="modal-close" type="button" aria-label="Fechar desafio">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
 
         <!-- AR Lite Stage -->
         <div id="ar-stage" class="ar-stage">
           <video id="ar-video" autoplay playsinline muted class="hidden"></video>
           <div class="ar-grid-overlay"></div>
           <div id="creature-svg-container" class="creature-stage-art"></div>
-          <button id="btn-toggle-ar" class="ar-toggle-btn" type="button">📷 Ativar Câmera AR</button>
+          <button id="btn-toggle-ar" class="ar-toggle-btn" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Ativar Câmera AR</span>
+          </button>
           <span id="enc-rarity" class="rarity-pill">Comum</span>
         </div>
 
@@ -192,7 +232,7 @@
 
             <div class="progress-row">
               <span id="challenge-progress-text" class="progress-big">0 / 10</span>
-              <span id="challenge-timer" class="timer-pill">⏱️ 0s</span>
+              <span id="challenge-timer" class="timer-pill">0s</span>
             </div>
 
             <div class="challenge-bar">
@@ -200,28 +240,30 @@
             </div>
 
             <div id="motion-indicator" class="motion-status">
-              Pronto para começar! Use o sensor do celular ou o botão de ritmo.
+              Pronto para iniciar. Use o sensor do celular ou o botão de ritmo.
             </div>
           </div>
 
           <div class="challenge-actions">
             <button id="btn-start-challenge" class="primary-btn" type="button">
-              ⚡ Iniciar Desafio
+              Iniciar Desafio
             </button>
             <button id="btn-manual-rep" class="tap-btn hidden" type="button">
-              💪 Registrar Movimento (Tap / Espaço)
+              Registrar Movimento (Toque / Espaço)
             </button>
           </div>
         </div>
 
         <!-- Capture Celebration Body -->
         <div id="capture-celebration" class="modal-body celebration-body hidden">
-          <div class="celebration-burst">✨</div>
-          <h2 id="celeb-title">Vitalis Capturado!</h2>
+          <div class="celebration-icon-wrap">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h2 id="celeb-title">Vitalis Capturado</h2>
           <p id="celeb-subtitle" class="celeb-sub"></p>
           <div class="celeb-rewards">
             <div class="reward-chip" id="celeb-xp">+50 XP</div>
-            <div class="reward-chip levelup-chip hidden" id="celeb-levelup">🎉 Subiu de Nível!</div>
+            <div class="reward-chip levelup-chip hidden" id="celeb-levelup">Novo Nível Alcançado</div>
           </div>
           <button id="btn-celeb-done" class="primary-btn" type="button">Continuar Explorando</button>
         </div>

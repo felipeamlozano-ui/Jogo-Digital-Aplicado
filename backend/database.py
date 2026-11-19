@@ -124,7 +124,7 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
             {
                 "id": "first_step",
                 "name": "Primeiro Passo",
-                "icon": "👟",
+                "icon": "activity",
                 "description": "Completou seu primeiro exercício físico.",
             }
         )
@@ -133,7 +133,7 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
             {
                 "id": "collector_3",
                 "name": "Colecionador Iniciante",
-                "icon": "🧭",
+                "icon": "compass",
                 "description": "Capturou 3 espécies diferentes de Vitalis.",
             }
         )
@@ -142,7 +142,7 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
             {
                 "id": "vitalis_master",
                 "name": "Mestre Vitalis",
-                "icon": "🏆",
+                "icon": "trophy",
                 "description": "Capturou 8 espécies diferentes de Vitalis.",
             }
         )
@@ -151,7 +151,7 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
             {
                 "id": "marathoner",
                 "name": "Explorador 1K",
-                "icon": "🏃",
+                "icon": "target",
                 "description": "Percorreu pelo menos 1.000 metros.",
             }
         )
@@ -160,7 +160,7 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
             {
                 "id": "calorie_burner",
                 "name": "Energia Pura",
-                "icon": "🔥",
+                "icon": "flame",
                 "description": "Queimou 100 kcal ou mais em atividades.",
             }
         )
@@ -169,7 +169,7 @@ def _compute_badges(conn: sqlite3.Connection, player_row: sqlite3.Row) -> list[d
             {
                 "id": "level_5",
                 "name": "Atleta Nível 5",
-                "icon": "⭐",
+                "icon": "award",
                 "description": "Alcançou o nível 5 de condicionamento.",
             }
         )

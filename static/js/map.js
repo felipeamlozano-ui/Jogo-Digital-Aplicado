@@ -4,17 +4,10 @@
   const INTERACTION_RADIUS_M = 60;
 
   const TYPE_COLORS = {
-    Cardio: '#ef4444',
-    Força: '#f59e0b',
-    Agilidade: '#38bdf8',
-    Equilíbrio: '#a855f7'
-  };
-
-  const TYPE_EMOJIS = {
-    Cardio: '🔥',
-    Força: '💪',
-    Agilidade: '⚡',
-    Equilíbrio: '🧘'
+    Cardio: '#E11D48',
+    Força: '#D97706',
+    Agilidade: '#0284C7',
+    Equilíbrio: '#7C3AED'
   };
 
   class VitalisMap {
@@ -27,12 +20,18 @@
       this.playerMarker = null;
       this.radiusCircle = null;
       this.spawnMarkers = [];
-      this.playerLat = options.lat ?? -23.587416;
-      this.playerLng = options.lng ?? -46.657634;
+      this.playerLat = null;
+      this.playerLng = null;
       this.spawns = [];
+      this.initialized = false;
     }
 
     init(lat, lng) {
+      if (this.initialized) {
+        this.updatePlayerPosition(lat, lng, true);
+        return;
+      }
+      this.initialized = true;
       this.playerLat = lat;
       this.playerLng = lng;
 
@@ -46,12 +45,16 @@
         attribution: '&copy; OpenStreetMap'
       }).addTo(this.map);
 
+      const playerIconSvg = global.VitalisIcons
+        ? global.VitalisIcons.get('user', 14)
+        : '';
+
       const playerIcon = L.divIcon({
         className: 'player-div-icon',
         html: `
           <div class="player-marker-wrap">
             <div class="player-pulse"></div>
-            <div class="player-avatar-dot">🏃</div>
+            <div class="player-avatar-dot">${playerIconSvg}</div>
           </div>
         `,
         iconSize: [40, 40],
@@ -74,6 +77,10 @@
     }
 
     updatePlayerPosition(lat, lng, panToPlayer = true) {
+      if (!this.initialized) {
+        this.init(lat, lng);
+        return;
+      }
       this.playerLat = lat;
       this.playerLng = lng;
       if (this.playerMarker) {
@@ -89,7 +96,7 @@
     }
 
     centerOnPlayer() {
-      if (this.map) {
+      if (this.map && this.playerLat !== null && this.playerLng !== null) {
         this.map.setView([this.playerLat, this.playerLng], 17, { animate: true });
       }
     }
@@ -103,6 +110,9 @@
     setSpawns(spawns) {
       this.spawns = Array.isArray(spawns) ? spawns : [];
       this._clearSpawns();
+      if (!this.initialized || this.playerLat === null) return;
+
+      const Icons = global.VitalisIcons;
 
       this.spawns.forEach((spawn) => {
         const dist = global.VitalisSensors.haversineDistance(
@@ -113,20 +123,24 @@
         );
         const inRange = dist <= INTERACTION_RADIUS_M;
         const color = spawn.svg_color || TYPE_COLORS[spawn.type] || '#10b981';
-        const emoji = spawn.emoji || TYPE_EMOJIS[spawn.type] || '✨';
+        const iconKey =
+          spawn.icon ||
+          (Icons && Icons.TYPE_ICON_MAP[spawn.type]) ||
+          'bolt';
+        const iconSvg = Icons ? Icons.get(iconKey, 20) : '';
 
         const icon = L.divIcon({
           className: 'spawn-div-icon',
           html: `
             <div class="spawn-marker ${inRange ? '' : 'out-of-range'}" data-spawn-id="${spawn.spawn_id}">
-              <div class="spawn-bubble" style="border-color: ${color};">
-                <span style="font-size: 22px;">${emoji}</span>
+              <div class="spawn-bubble" style="border-color: ${color}; color: ${color};">
+                ${iconSvg}
               </div>
               <span class="spawn-label">${spawn.name}</span>
             </div>
           `,
-          iconSize: [70, 68],
-          iconAnchor: [35, 34]
+          iconSize: [74, 68],
+          iconAnchor: [37, 34]
         });
 
         const marker = L.marker([spawn.lat, spawn.lng], { icon }).addTo(this.map);
@@ -149,6 +163,7 @@
     }
 
     _refreshSpawnRangeClasses() {
+      if (this.playerLat === null) return;
       this.spawnMarkers.forEach(({ marker, spawn }) => {
         const el = marker.getElement();
         if (!el) return;

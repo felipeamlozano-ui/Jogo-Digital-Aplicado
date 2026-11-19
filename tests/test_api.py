@@ -315,6 +315,29 @@ class ApiIntegrationTests(unittest.TestCase):
                     body = resp.read().decode("utf-8")
                     self.assertIn(expected_substr, body)
 
+    def test_no_emojis_in_api_responses(self) -> None:
+        self._post_json(
+            "/api/capture",
+            {
+                "creature_id": "voltix",
+                "exercise_type": "Polichinelos",
+                "duration_sec": 20,
+                "distance_m": 0,
+                "reps": 15,
+            },
+        )
+        for endpoint in (
+            "/api/player",
+            "/api/spawns?lat=-23.5505&lng=-46.6333",
+            "/api/fitdex",
+            "/api/missions",
+            "/api/leaderboard",
+        ):
+            _, data = self._get_json(endpoint)
+            serialized = json.dumps(data, ensure_ascii=False)
+            bad = [c for c in serialized if ord(c) > 0x024F]
+            self.assertEqual(bad, [], f"Unexpected non-Latin/emoji chars in {endpoint}: {bad}")
+
 
 if __name__ == "__main__":
     unittest.main()

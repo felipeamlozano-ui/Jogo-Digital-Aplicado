@@ -2,41 +2,46 @@
   'use strict';
 
   const { SoundFX, LocationManager, ExerciseTracker, CameraAR } = global.VitalisSensors;
+  const Icons = global.VitalisIcons;
 
   const TYPE_COLORS = {
-    Cardio: '#ef4444',
-    Força: '#f59e0b',
-    Agilidade: '#38bdf8',
-    Equilíbrio: '#a855f7'
-  };
-
-  const TYPE_EMOJIS = {
-    Cardio: '🔥',
-    Força: '💪',
-    Agilidade: '⚡',
-    Equilíbrio: '🧘'
+    Cardio: '#E11D48',
+    Força: '#D97706',
+    Agilidade: '#0284C7',
+    Equilíbrio: '#7C3AED'
   };
 
   function createCreatureSVG(creature) {
     const color = creature.svg_color || TYPE_COLORS[creature.type] || '#10b981';
-    const emoji = creature.emoji || TYPE_EMOJIS[creature.type] || '✨';
+    const uid = String(creature.creature_id || creature.id || 'v').replace(/[^a-zA-Z0-9_-]/g, '');
+    const iconKey =
+      creature.icon ||
+      (Icons && Icons.TYPE_ICON_MAP[creature.type]) ||
+      'bolt';
+    const innerIcon = Icons ? Icons.get(iconKey, 24) : '';
+
     return `
-      <svg viewBox="0 0 120 120" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <radialGradient id="grad-${creature.creature_id || creature.id || 'v'}" cx="35%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45"/>
-            <stop offset="55%" stop-color="${color}" stop-opacity="0.95"/>
-            <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95"/>
-          </radialGradient>
-        </defs>
-        <circle cx="60" cy="60" r="46" fill="url(#grad-${creature.creature_id || creature.id || 'v'})" stroke="#ffffff" stroke-opacity="0.4" stroke-width="3"/>
-        <circle cx="44" cy="52" r="6" fill="#ffffff"/>
-        <circle cx="76" cy="52" r="6" fill="#ffffff"/>
-        <circle cx="45" cy="52" r="3" fill="#0f172a"/>
-        <circle cx="77" cy="52" r="3" fill="#0f172a"/>
-        <path d="M47 70 Q60 80 73 70" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>
-        <text x="60" y="26" text-anchor="middle" font-size="18">${emoji}</text>
-      </svg>
+      <div class="creature-vector-badge" style="--creature-color: ${color};">
+        <svg viewBox="0 0 120 120" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="grad-${uid}" cx="35%" cy="30%" r="72%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.38"/>
+              <stop offset="55%" stop-color="${color}" stop-opacity="0.96"/>
+              <stop offset="100%" stop-color="#0f172a" stop-opacity="0.98"/>
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="${color}" stroke-opacity="0.35" stroke-width="2" stroke-dasharray="6 4"/>
+          <circle cx="60" cy="60" r="42" fill="url(#grad-${uid})" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2.5"/>
+          <circle cx="46" cy="54" r="5" fill="#ffffff"/>
+          <circle cx="74" cy="54" r="5" fill="#ffffff"/>
+          <circle cx="47" cy="54" r="2.4" fill="#0f172a"/>
+          <circle cx="75" cy="54" r="2.4" fill="#0f172a"/>
+          <path d="M48 70 Q60 79 72 70" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <div class="creature-type-emblem" style="background:${color};">
+          ${innerIcon}
+        </div>
+      </div>
     `;
   }
 
@@ -71,37 +76,61 @@
       this.useLocalEngine = global.location.hostname.endsWith('github.io');
 
       this.location = new LocationManager({
-        initialMode: 'simulator',
-        onMove: (lat, lng, deltaM) => this.handlePlayerMove(lat, lng, deltaM),
+        initialMode: 'gps',
+        onMove: (lat, lng, deltaM, isFirstFix) => this.handlePlayerMove(lat, lng, deltaM, isFirstFix),
         onModeChange: (mode) => this.updateModeUI(mode),
+        onGPSState: (state, msg) => this.handleGPSState(state, msg),
         onError: (msg) => showToast(msg, 3500)
       });
 
       this.vitalisMap = new global.VitalisMap({
         containerId: 'map',
-        lat: this.location.lat,
-        lng: this.location.lng,
         onSpawnClick: (spawn) => this.openEncounter(spawn),
         onOutOfRange: (spawn, dist) => {
           const remaining = Math.max(1, Math.round(dist - global.INTERACTION_RADIUS_M));
-          showToast(`${spawn.name} está a ${Math.round(dist)}m! Aproxime-se mais ${remaining}m.`);
+          showToast(`${spawn.name} está a ${Math.round(dist)} m. Aproxime-se mais ${remaining} m.`);
         }
       });
     }
 
     async init() {
       this._registerSW();
-      this.vitalisMap.init(this.location.lat, this.location.lng);
       this._bindEvents();
       this.updateModeUI(this.location.mode);
 
       await this.fetchPlayer();
-      await this.fetchSpawns();
+      // Immediately request real GPS permission on load (never silent fake location)
+      this.location.requestGPS();
     }
 
     _registerSW() {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
+      }
+    }
+
+    handleGPSState(state, message) {
+      const overlay = document.getElementById('location-overlay');
+      const title = document.getElementById('location-overlay-title');
+      const msgEl = document.getElementById('location-overlay-msg');
+      const retryBtn = document.getElementById('btn-retry-gps');
+
+      if (!overlay) return;
+
+      if (state === 'ready') {
+        overlay.classList.add('hidden');
+        return;
+      }
+
+      overlay.classList.remove('hidden');
+      if (state === 'requesting') {
+        title.textContent = 'Localização GPS';
+        msgEl.textContent = message || 'Solicitando acesso à sua localização...';
+        retryBtn.textContent = 'Ativar localização';
+      } else if (state === 'error') {
+        title.textContent = 'GPS Indisponível';
+        msgEl.textContent = message || 'Não foi possível acessar sua localização.';
+        retryBtn.textContent = 'Tentar novamente';
       }
     }
 
@@ -175,25 +204,36 @@
       try {
         this.player = await this.apiGet('./api/player');
         this.renderHUD();
-      } catch (err) {
-        showToast('Erro ao carregar dados do jogador.');
+      } catch (_) {
+        showToast('Erro ao carregar dados do atleta.');
       }
     }
 
     async fetchSpawns() {
+      if (this.location.lat === null || this.location.lng === null) return;
       try {
         const data = await this.apiGet(
           `./api/spawns?lat=${this.location.lat.toFixed(6)}&lng=${this.location.lng.toFixed(6)}`
         );
         this.spawns = data.spawns || [];
         this.vitalisMap.setSpawns(this.spawns);
-      } catch (err) {
+      } catch (_) {
         showToast('Erro ao buscar Vitalis próximos.');
       }
     }
 
-    handlePlayerMove(lat, lng, deltaM) {
-      this.vitalisMap.updatePlayerPosition(lat, lng, true);
+    handlePlayerMove(lat, lng, deltaM, isFirstFix) {
+      if (!this.vitalisMap.initialized) {
+        this.vitalisMap.init(lat, lng);
+      } else {
+        this.vitalisMap.updatePlayerPosition(lat, lng, true);
+      }
+
+      if (isFirstFix) {
+        this.fetchSpawns();
+        return;
+      }
+
       this.pendingSessionDistance += deltaM;
       this.sessionDistanceSinceSpawnFetch += deltaM;
 
@@ -259,12 +299,12 @@
     async loadFitDex() {
       const grid = document.getElementById('fitdex-grid');
       const summary = document.getElementById('fitdex-summary');
-      grid.innerHTML = '<p style="color:var(--text-muted)">Carregando FitDex...</p>';
+      grid.innerHTML = '<p class="view-subtitle">Carregando FitDex...</p>';
       try {
         const data = await this.apiGet('./api/fitdex');
         const creatures = data.creatures || [];
         const capturedTotal = creatures.filter((c) => (c.captured_count || 0) > 0).length;
-        summary.textContent = `${capturedTotal} de ${creatures.length} Vitalis descobertos`;
+        summary.textContent = `${capturedTotal} de ${creatures.length} Vitalis registrados`;
 
         grid.innerHTML = creatures
           .map((c) => {
@@ -272,33 +312,37 @@
             return `
               <div class="fitdex-card ${unlocked ? '' : 'locked'}">
                 <div class="creature-art-wrap">${createCreatureSVG(c)}</div>
-                <div class="fitdex-name">${unlocked ? c.name : '???'}</div>
+                <div class="fitdex-name">${unlocked ? c.name : 'Não descoberto'}</div>
                 <div class="fitdex-meta">${c.type} • ${c.exercise_type}</div>
                 <div class="fitdex-count">
-                  ${unlocked ? `Capturados: ${c.captured_count}` : 'Não capturado'}
+                  ${unlocked ? `Capturas: ${c.captured_count}` : 'Bloqueado'}
                 </div>
               </div>
             `;
           })
           .join('');
       } catch (_) {
-        grid.innerHTML = '<p style="color:var(--danger)">Erro ao carregar FitDex.</p>';
+        grid.innerHTML = '<p class="error-text">Erro ao carregar FitDex.</p>';
       }
     }
 
     async loadMissions() {
       const list = document.getElementById('missions-list');
-      list.innerHTML = '<p style="color:var(--text-muted)">Carregando missões...</p>';
+      list.innerHTML = '<p class="view-subtitle">Carregando missões...</p>';
       try {
         const data = await this.apiGet('./api/missions');
         const missions = data.missions || [];
+        const checkSvg = Icons ? Icons.get('check', 15, 'mission-check-icon') : '';
         list.innerHTML = missions
           .map((m) => {
             const pct = Math.min(100, Math.round(((m.progress || 0) / (m.target || 1)) * 100));
             return `
               <div class="mission-card ${m.completed ? 'completed' : ''}">
                 <div class="mission-top">
-                  <div class="mission-title">${m.completed ? '✅ ' : ''}${m.title}</div>
+                  <div class="mission-title">
+                    ${m.completed ? checkSvg : ''}
+                    <span>${m.title}</span>
+                  </div>
                   <div class="mission-xp">+${m.xp_reward} XP</div>
                 </div>
                 <div class="mission-desc">${m.description}</div>
@@ -314,7 +358,7 @@
           })
           .join('');
       } catch (_) {
-        list.innerHTML = '<p style="color:var(--danger)">Erro ao carregar missões.</p>';
+        list.innerHTML = '<p class="error-text">Erro ao carregar missões.</p>';
       }
     }
 
@@ -338,11 +382,15 @@
         badgesEl.innerHTML = badges.length
           ? badges
               .map((b) => {
-                if (typeof b === 'string') return `<span class="badge-chip">🏅 ${b}</span>`;
-                return `<span class="badge-chip" title="${b.description || ''}">${b.icon || '🏅'} ${b.name || b.id}</span>`;
+                if (typeof b === 'string') {
+                  const svg = Icons ? Icons.get('award', 13) : '';
+                  return `<span class="badge-chip">${svg}<span>${b}</span></span>`;
+                }
+                const svg = Icons ? Icons.get(b.icon || 'award', 13) : '';
+                return `<span class="badge-chip" title="${b.description || ''}">${svg}<span>${b.name || b.id}</span></span>`;
               })
               .join('')
-          : '<span class="view-subtitle">Complete exercícios para desbloquear medalhas!</span>';
+          : '<span class="view-subtitle">Complete treinos para desbloquear conquistas.</span>';
 
         const lbList = document.getElementById('leaderboard-list');
         const rows = lbData.leaderboard || [];
@@ -375,7 +423,7 @@
 
       document.getElementById('enc-name').textContent = spawn.name;
       document.getElementById('enc-desc').textContent =
-        spawn.description || `Complete o desafio de ${spawn.exercise_type} para capturar ${spawn.name}!`;
+        spawn.description || `Complete o desafio de ${spawn.exercise_type} para capturar ${spawn.name}.`;
       document.getElementById('enc-type').textContent = spawn.type || 'Vitalis';
       document.getElementById('enc-rarity').textContent = spawn.rarity || 'Comum';
       document.getElementById('enc-exercise').textContent = spawn.exercise_type;
@@ -385,16 +433,17 @@
 
       const unitLabel = spawn.unit || 'reps';
       document.getElementById('challenge-progress-text').textContent = `0 / ${spawn.target} ${unitLabel}`;
-      document.getElementById('challenge-timer').textContent = '⏱️ 0s';
+      document.getElementById('challenge-timer').textContent = '0s';
       document.getElementById('challenge-progress-fill').style.width = '0%';
       document.getElementById('motion-indicator').textContent =
-        'Pronto para começar! Use o sensor do celular ou o botão de ritmo.';
+        'Pronto para iniciar. Use o sensor do celular ou o botão de ritmo.';
 
       document.getElementById('btn-start-challenge').classList.remove('hidden');
       document.getElementById('btn-manual-rep').classList.add('hidden');
       document.getElementById('challenge-body').classList.remove('hidden');
       document.getElementById('capture-celebration').classList.add('hidden');
-      document.getElementById('btn-toggle-ar').textContent = '📷 Ativar Câmera AR';
+      const arLabel = document.querySelector('#btn-toggle-ar span');
+      if (arLabel) arLabel.textContent = 'Ativar Câmera AR';
 
       document.getElementById('encounter-modal').classList.remove('hidden');
     }
@@ -414,18 +463,18 @@
 
     async toggleCameraAR() {
       const videoEl = document.getElementById('ar-video');
-      const btn = document.getElementById('btn-toggle-ar');
+      const arLabel = document.querySelector('#btn-toggle-ar span');
       if (this.arActive) {
         CameraAR.stop(videoEl);
         this.arActive = false;
-        btn.textContent = '📷 Ativar Câmera AR';
+        if (arLabel) arLabel.textContent = 'Ativar Câmera AR';
       } else {
         const ok = await CameraAR.start(videoEl);
         if (ok) {
           this.arActive = true;
-          btn.textContent = '🚫 Desativar AR';
+          if (arLabel) arLabel.textContent = 'Desativar Câmera AR';
         } else {
-          showToast('Câmera indisponível. Usando modo AR animado!');
+          showToast('Câmera indisponível. Mantendo arena vetorial.');
         }
       }
     }
@@ -448,7 +497,7 @@
           const pct = Math.min(100, Math.round((current / target) * 100));
           const unitLabel = spawn.unit || 'reps';
           document.getElementById('challenge-progress-text').textContent = `${current} / ${target} ${unitLabel}`;
-          document.getElementById('challenge-timer').textContent = `⏱️ ${elapsedSec}s`;
+          document.getElementById('challenge-timer').textContent = `${elapsedSec}s`;
           document.getElementById('challenge-progress-fill').style.width = `${pct}%`;
         },
         onComplete: (result) => this.submitCapture(spawn, result)
@@ -483,7 +532,7 @@
 
         document.getElementById('challenge-body').classList.add('hidden');
         document.getElementById('capture-celebration').classList.remove('hidden');
-        document.getElementById('celeb-title').textContent = `${spawn.name} Capturado!`;
+        document.getElementById('celeb-title').textContent = `${spawn.name} Capturado`;
         document.getElementById('celeb-subtitle').textContent =
           `Desafio de ${spawn.exercise_type} concluído em ${result.duration_sec}s.`;
         document.getElementById('celeb-xp').textContent = `+${res.xp_gained ?? spawn.xp_reward} XP`;
@@ -491,49 +540,51 @@
         const lvlChip = document.getElementById('celeb-levelup');
         if (res.leveled_up) {
           lvlChip.classList.remove('hidden');
-          lvlChip.textContent = `🎉 Nível ${res.player?.level || ''}!`;
+          lvlChip.textContent = `Nível ${res.player?.level || ''} alcançado`;
         } else {
           lvlChip.classList.add('hidden');
         }
 
-        // Remove captured spawn locally and refresh spawns
         this.spawns = this.spawns.filter((s) => s.spawn_id !== spawn.spawn_id);
         this.vitalisMap.setSpawns(this.spawns);
-      } catch (err) {
+      } catch (_) {
         showToast('Erro ao registrar captura no servidor.');
         this.closeEncounter();
       }
     }
 
     _bindEvents() {
-      // Bottom nav
       document.querySelectorAll('.nav-btn').forEach((btn) => {
         btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
       });
 
-      // GPS / Simulator toggle
       document.getElementById('btn-mode-toggle').addEventListener('click', () => {
         const nextMode = this.location.mode === 'simulator' ? 'gps' : 'simulator';
         this.location.setMode(nextMode);
       });
 
-      // Map actions
+      document.getElementById('btn-retry-gps').addEventListener('click', () => {
+        this.location.requestGPS();
+      });
+
+      document.getElementById('btn-fallback-sim').addEventListener('click', () => {
+        this.location.setMode('simulator');
+      });
+
       document.getElementById('btn-center-map').addEventListener('click', () => {
         this.vitalisMap.centerOnPlayer();
       });
       document.getElementById('btn-refresh-spawns').addEventListener('click', () => {
         this.fetchSpawns();
-        showToast('Buscando Vitalis próximos...');
+        showToast('Atualizando Vitalis próximos...');
       });
 
-      // Simulator D-pad
       document.querySelectorAll('.dpad-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           this.location.moveStep(btn.dataset.dir);
         });
       });
 
-      // Keyboard WASD / Arrows + Space for rep
       document.addEventListener('keydown', (e) => {
         const modalOpen = !document.getElementById('encounter-modal').classList.contains('hidden');
         if (modalOpen) {
@@ -563,7 +614,6 @@
         }
       });
 
-      // Modal controls
       document.getElementById('btn-close-modal').addEventListener('click', () => this.closeEncounter());
       document.getElementById('btn-celeb-done').addEventListener('click', () => this.closeEncounter());
       document.getElementById('btn-toggle-ar').addEventListener('click', () => this.toggleCameraAR());

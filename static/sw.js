@@ -1,4 +1,4 @@
-const CACHE_NAME = 'edufisica-v2';
+const CACHE_NAME = 'educacao-fisica-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -12,9 +12,7 @@ const APP_SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL).catch(() => {});
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL).catch(() => {}))
   );
   self.skipWaiting();
 });
@@ -33,18 +31,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Never cache API calls — always go to network
   if (url.pathname.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
-  // Network-first for local app shell, fallback to cache
-  if (url.origin === self.location.origin) {
+  if (url.origin === self.location.origin && event.request.method === 'GET') {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-cache' })
         .then((response) => {
-          if (response && response.status === 200 && event.request.method === 'GET') {
+          if (response && response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
